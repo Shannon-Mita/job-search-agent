@@ -74,6 +74,71 @@ def make_fingerprint(company: str, title: str, location: str) -> str:
     return hashlib.sha1(raw.encode()).hexdigest()
 
 
+# Common words that appear in real job titles
+JOB_TITLE_INDICATORS = {
+    "manager", "director", "lead", "head", "engineer", "developer",
+    "analyst", "specialist", "coordinator", "associate", "officer",
+    "designer", "scientist", "consultant", "advisor", "executive",
+    "architect", "strategist", "partner", "recruiter", "talent",
+    "operations", "marketing", "sales", "finance", "legal", "people",
+    "product", "commercial", "business", "technical", "senior", "junior",
+    "principal", "vp", "cto", "coo", "cfo", "cmo", "chief", "intern",
+    "apprentice", "graduate", "research", "data", "software", "hardware",
+    "supply", "procurement", "logistics", "communications", "content",
+}
+
+# Phrases that definitively indicate non-job content
+NON_JOB_PHRASES = {
+    "explore open roles", "view open roles", "open roles", "see all roles",
+    "view all jobs", "all jobs", "see open positions", "view positions",
+    "privacy overview", "current job openings", "connect with us",
+    "no open positions", "no current openings", "check back later",
+    "join our team", "work with us", "our culture", "our values",
+    "learn more", "find out more", "read more", "see more", "view more",
+    "embrace a visionary mindset", "building a community",
+    "remote by design", "cookie policy", "privacy policy",
+}
+
+
+def is_valid_job_title(title: str) -> bool:
+    """
+    Returns True if the title looks like a real job listing.
+    Filters out product names, marketing copy, nav links, culture text.
+    """
+    if not title or len(title) < 5 or len(title) > 120:
+        return False
+
+    title_lower = title.lower().strip()
+
+    # Reject known non-job phrases
+    if title_lower in NON_JOB_PHRASES:
+        return False
+    for phrase in NON_JOB_PHRASES:
+        if title_lower.startswith(phrase):
+            return False
+
+    # Reject if ends with punctuation suggesting marketing copy
+    if title.endswith((".", "!", "?", "...")):
+        return False
+
+    # Reject if contains @ with a brand name (product listing pattern)
+    if " @ " in title and not any(w in title.lower() for w in ["manager", "engineer", "director"]):
+        return False
+
+    # Reject if all words are capitalised (likely a heading, not a title)
+    words = title.split()
+    if len(words) >= 3 and all(w[0].isupper() for w in words if len(w) > 3):
+        # Allow standard title case job titles but reject ALL CAPS
+        if title.isupper():
+            return False
+
+    # Must contain at least one job title indicator word
+    if not any(indicator in title_lower for indicator in JOB_TITLE_INDICATORS):
+        return False
+
+    return True
+
+
 def _looks_js_rendered(soup: BeautifulSoup) -> bool:
     text = soup.get_text(strip=True)
     if len(text) < 500:
@@ -374,9 +439,18 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
                 if not title_el:
                     continue
                 title = title_el.get_text(strip=True)
+
+                # Split concatenated title+location (e.g. "Product ManagerLondon")
+                import re as _re
+                title = _re.sub(r'([a-z])([A-Z][a-z])', r'\1 | \2', title)
+                if " | " in title:
+                    title = title.split(" | ")[0].strip()
+
                 if len(title) < 3 or len(title) > 150:
                     continue
                 if title.lower() in nav_phrases:
+                    continue
+                if not is_valid_job_title(title):
                     continue
                 loc_el = card.find(class_=re.compile(r"location|city|region", re.I))
                 location = loc_el.get_text(strip=True) if loc_el else ""
@@ -423,6 +497,9 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
             continue
         # Skip if text looks like a nav item (all caps, or ends with arrow/chevron)
         if text.isupper() or text.endswith(("→", "»", ">", "›")):
+            continue
+
+        if not is_valid_job_title(text):
             continue
 
         seen_hrefs.add(href)
