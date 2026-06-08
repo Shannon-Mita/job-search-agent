@@ -263,7 +263,7 @@ def fetch_workable_api(career_url: str) -> Optional[list]:
 
 
 def fetch_greenhouse_api(career_url: str) -> Optional[list]:
-    """Fetch jobs from Greenhouse public API."""
+    """Fetch jobs from Greenhouse public API with full descriptions."""
     import re
     m = re.search(r"greenhouse\.io/([^/?#]+)", career_url)
     if not m:
@@ -271,7 +271,7 @@ def fetch_greenhouse_api(career_url: str) -> Optional[list]:
     slug = m.group(1)
     try:
         resp = requests.get(
-            f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs",
+            f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true",
             headers=HEADERS, timeout=15
         )
         if resp.status_code != 200:
@@ -280,12 +280,19 @@ def fetch_greenhouse_api(career_url: str) -> Optional[list]:
         jobs = []
         for job in data.get("jobs", []):
             location = job.get("location", {}).get("name", "")
+            # Strip HTML from description
+            raw_content = job.get("content", "") or ""
+            if raw_content:
+                desc_soup = BeautifulSoup(raw_content, "lxml")
+                description = desc_soup.get_text(separator=" ", strip=True)[:MAX_DESCRIPTION]
+            else:
+                description = ""
             jobs.append({
                 "title":       job.get("title", ""),
                 "location":    location,
                 "salary_raw":  "",
                 "url":         job.get("absolute_url", career_url),
-                "description": job.get("content", "")[:MAX_DESCRIPTION],
+                "description": description,
                 "extraction_method": "greenhouse-api",
             })
         log.info(f"  Greenhouse API: {len(jobs)} jobs for {slug}")
@@ -318,12 +325,19 @@ def fetch_lever_api(career_url: str) -> Optional[list]:
             categories = job.get("categories", {})
             if isinstance(categories, dict):
                 location = categories.get("location", "")
+            # Strip HTML from description if present
+            raw_desc = job.get("descriptionPlain", "") or job.get("description", "") or ""
+            if raw_desc and "<" in raw_desc:
+                desc_soup = BeautifulSoup(raw_desc, "lxml")
+                description = desc_soup.get_text(separator=" ", strip=True)[:MAX_DESCRIPTION]
+            else:
+                description = raw_desc[:MAX_DESCRIPTION]
             jobs.append({
                 "title":       job.get("text", ""),
                 "location":    location,
                 "salary_raw":  "",
                 "url":         job.get("hostedUrl", career_url),
-                "description": job.get("descriptionPlain", "")[:MAX_DESCRIPTION],
+                "description": description,
                 "extraction_method": "lever-api",
             })
         log.info(f"  Lever API: {len(jobs)} jobs for {slug}")
