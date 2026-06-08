@@ -182,18 +182,99 @@ def fetch_workable_api(career_url: str) -> Optional[list]:
         return None
 
 
+def fetch_greenhouse_api(career_url: str) -> Optional[list]:
+    """Fetch jobs from Greenhouse public API."""
+    import re
+    m = re.search(r"greenhouse\.io/([^/?#]+)", career_url)
+    if not m:
+        return None
+    slug = m.group(1)
+    try:
+        resp = requests.get(
+            f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs",
+            headers=HEADERS, timeout=15
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        jobs = []
+        for job in data.get("jobs", []):
+            location = job.get("location", {}).get("name", "")
+            jobs.append({
+                "title":       job.get("title", ""),
+                "location":    location,
+                "salary_raw":  "",
+                "url":         job.get("absolute_url", career_url),
+                "description": job.get("content", "")[:MAX_DESCRIPTION],
+                "extraction_method": "greenhouse-api",
+            })
+        log.info(f"  Greenhouse API: {len(jobs)} jobs for {slug}")
+        return jobs
+    except Exception as e:
+        log.warning(f"Greenhouse API error for {slug}: {e}")
+        return None
+
+
+def fetch_lever_api(career_url: str) -> Optional[list]:
+    """Fetch jobs from Lever public API."""
+    import re
+    m = re.search(r"lever\.co/([^/?#]+)", career_url)
+    if not m:
+        return None
+    slug = m.group(1)
+    try:
+        resp = requests.get(
+            f"https://api.lever.co/v0/postings/{slug}",
+            headers=HEADERS, timeout=15
+        )
+        if resp.status_code != 200:
+            return None
+        postings = resp.json()
+        if not isinstance(postings, list):
+            return None
+        jobs = []
+        for job in postings:
+            location = ""
+            categories = job.get("categories", {})
+            if isinstance(categories, dict):
+                location = categories.get("location", "")
+            jobs.append({
+                "title":       job.get("text", ""),
+                "location":    location,
+                "salary_raw":  "",
+                "url":         job.get("hostedUrl", career_url),
+                "description": job.get("descriptionPlain", "")[:MAX_DESCRIPTION],
+                "extraction_method": "lever-api",
+            })
+        log.info(f"  Lever API: {len(jobs)} jobs for {slug}")
+        return jobs
+    except Exception as e:
+        log.warning(f"Lever API error for {slug}: {e}")
+        return None
+
+
 def fetch_page(url: str) -> Optional[BeautifulSoup]:
     """
     Fetch page with requests first, fall back to Playwright for JS-rendered pages.
-    For Workable URLs, uses their JSON API directly instead of scraping.
+    For Workable, Greenhouse, and Lever URLs, uses their JSON APIs directly.
     """
     # Workable: use API directly, skip HTML scraping entirely
     if "workable.com" in url:
         jobs = fetch_workable_api(url)
         if jobs is not None:
-            # Return a synthetic soup with structured data embedded
-            # We handle Workable jobs directly in scrape_all()
             return "WORKABLE_API", jobs
+
+    # Greenhouse: use API directly
+    if "greenhouse.io" in url:
+        jobs = fetch_greenhouse_api(url)
+        if jobs is not None:
+            return "GREENHOUSE_API", jobs
+
+    # Lever: use API directly
+    if "lever.co" in url:
+        jobs = fetch_lever_api(url)
+        if jobs is not None:
+            return "LEVER_API", jobs
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -446,8 +527,9 @@ def scrape_all(limit: Optional[int] = None, priority_filter: Optional[str] = Non
             time.sleep(DELAY_BETWEEN)
             continue
 
-        # Workable API returns structured jobs directly
-        if isinstance(result, tuple) and result[0] == "WORKABLE_API":
+        # ATS API returns structured jobs directly (Workable, Greenhouse, Lever)
+        if isinstance(result, tuple) and result[0] in ("WORKABLE_API", "GREENHOUSE_API", "LEVER_API"):
+            api_name = result[0].replace("_API", "").capitalize()
             jobs = result[1]
             new_count, found_count = save_jobs(conn, jobs, company)
             total_new   += new_count
@@ -456,9 +538,9 @@ def scrape_all(limit: Optional[int] = None, priority_filter: Optional[str] = Non
             log_watch_result(conn, company["id"], found_count, new_count, status,
                              duration_ms=int(time.time() * 1000) - start_ms)
             if new_count > 0:
-                log.info(f"  ✓ Workable API: {found_count} jobs, {new_count} NEW")
+                log.info(f"  ✓ {api_name} API: {found_count} jobs, {new_count} NEW")
             else:
-                log.info(f"  · Workable API: 0 jobs (none posted)")
+                log.info(f"  · {api_name} API: 0 jobs (none posted)")
             time.sleep(DELAY_BETWEEN)
             continue
 
