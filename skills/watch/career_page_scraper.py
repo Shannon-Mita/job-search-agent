@@ -136,6 +136,21 @@ def is_valid_job_title(title: str) -> bool:
     if not any(indicator in title_lower for indicator in JOB_TITLE_INDICATORS):
         return False
 
+    # Reject "Firstname Lastname - Something" pattern (person name, not a job)
+    import re as _re
+    if _re.match(r'^[A-Z][a-z]+ [A-Z][a-z]+ [-–]', title):
+        return False
+
+    # Reject if starts with a gerund (description fragment, not a title)
+    gerund_starters = [
+        "hiring", "building", "developing", "retaining", "managing",
+        "leading", "growing", "driving", "creating", "supporting",
+        "working", "helping", "making", "ensuring", "delivering",
+    ]
+    first_word = title_lower.split()[0] if title_lower.split() else ""
+    if first_word in gerund_starters:
+        return False
+
     return True
 
 
