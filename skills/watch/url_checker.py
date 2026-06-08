@@ -70,8 +70,25 @@ def check_url(url: str, timeout: int = 8) -> tuple:
             return False, 404
 
         if "workable.com" in url:
-            if "page not found" in text_lower or '"jobs":[]' in resp.text:
-                return False, 404
+            # Validate via API — Workable returns 200 for unknown slugs on the HTML page
+            import re as _re
+            slug = None
+            m = _re.search(r"apply\.workable\.com/([^/?#]+)", url)
+            if m:
+                slug = m.group(1)
+            if slug:
+                try:
+                    api_resp = requests.post(
+                        f"https://apply.workable.com/api/v3/accounts/{slug}/jobs",
+                        json={"query": "", "location": [], "department": [],
+                              "worktype": [], "remote": []},
+                        headers={**HEADERS, "Content-Type": "application/json"},
+                        timeout=timeout,
+                    )
+                    if api_resp.status_code != 200:
+                        return False, 404
+                except Exception:
+                    return False, 0
 
         return True, 200
     except requests.exceptions.RequestException:

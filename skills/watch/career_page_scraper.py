@@ -121,7 +121,80 @@ def fetch_page_playwright(url: str) -> Optional[BeautifulSoup]:
         return None
 
 
+def fetch_workable_api(career_url: str) -> Optional[list]:
+    """
+    Fetch jobs directly from Workable's public JSON API.
+    Returns list of job dicts or None if not a Workable page.
+    """
+    import re
+    slug = None
+    m = re.search(r"apply\.workable\.com/([^/?#]+)", career_url)
+    if m:
+        slug = m.group(1)
+    else:
+        m = re.search(r"([^/?#]+)\.workable\.com", career_url)
+        if m:
+            slug = m.group(1)
+
+    if not slug:
+        return None
+
+    api_url = f"https://apply.workable.com/api/v3/accounts/{slug}/jobs"
+    try:
+        resp = requests.post(
+            api_url,
+            json={"query": "", "location": [], "department": [], "worktype": [], "remote": []},
+            headers={**HEADERS, "Content-Type": "application/json"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            log.warning(f"Workable API {resp.status_code} for slug: {slug}")
+            return None
+
+        data = resp.json()
+        jobs = []
+        for job in data.get("results", []):
+            location_parts = [
+                job.get("location", {}).get("city", ""),
+                job.get("location", {}).get("country", ""),
+            ]
+            location = ", ".join(p for p in location_parts if p)
+            remote   = job.get("remote", False)
+            if remote and not location:
+                location = "Remote"
+            elif remote:
+                location = f"Remote / {location}"
+
+            jobs.append({
+                "title":       job.get("title", ""),
+                "location":    location,
+                "salary_raw":  "",
+                "url":         f"https://apply.workable.com/{slug}/j/{job.get('shortcode', '')}",
+                "description": job.get("description", "")[:MAX_DESCRIPTION],
+                "extraction_method": "workable-api",
+            })
+
+        log.info(f"  Workable API: {len(jobs)} jobs for {slug}")
+        return jobs
+
+    except Exception as e:
+        log.warning(f"Workable API error for {slug}: {e}")
+        return None
+
+
 def fetch_page(url: str) -> Optional[BeautifulSoup]:
+    """
+    Fetch page with requests first, fall back to Playwright for JS-rendered pages.
+    For Workable URLs, uses their JSON API directly instead of scraping.
+    """
+    # Workable: use API directly, skip HTML scraping entirely
+    if "workable.com" in url:
+        jobs = fetch_workable_api(url)
+        if jobs is not None:
+            # Return a synthetic soup with structured data embedded
+            # We handle Workable jobs directly in scrape_all()
+            return "WORKABLE_API", jobs
+
     for attempt in range(MAX_RETRIES):
         try:
             resp = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -234,20 +307,41 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
             if jobs:
                 return jobs
 
-    # Strategy 3: Link-based detection
+    # Strategy 3: Link-based detection — fallback only, strict filtering
     job_url_patterns = re.compile(
         r"/(job|jobs|career|careers|position|opening|vacancy|role|apply)/", re.I
     )
+    # Phrases that indicate navigation, not job titles
+    nav_phrases = {
+        "view all jobs", "all jobs", "careers", "jobs", "apply now",
+        "see all", "privacy overview", "current job openings", "connect with us",
+        "no open positions", "no current openings", "check back later",
+        "view openings", "open roles", "see open roles", "explore careers",
+        "join our team", "work with us", "our team", "about us", "contact us",
+        "learn more", "find out more", "read more", "see more", "view more",
+    }
+    # Minimum words in a real job title
+    MIN_TITLE_WORDS = 2
+
     seen_hrefs = set()
     for a in soup.find_all("a", href=True):
         href = a["href"]
         text = a.get_text(strip=True)
+
         if not job_url_patterns.search(href):
             continue
-        if href in seen_hrefs or len(text) < 3 or len(text) > 150:
+        if href in seen_hrefs:
             continue
-        if text.lower() in {"view all jobs", "all jobs", "careers", "jobs", "apply now", "see all"}:
+        if len(text) < 5 or len(text) > 120:
             continue
+        if text.lower() in nav_phrases:
+            continue
+        if len(text.split()) < MIN_TITLE_WORDS:
+            continue
+        # Skip if text looks like a nav item (all caps, or ends with arrow/chevron)
+        if text.isupper() or text.endswith(("→", "»", ">", "›")):
+            continue
+
         seen_hrefs.add(href)
         if href.startswith("http"):
             url = href
@@ -341,14 +435,32 @@ def scrape_all(limit: Optional[int] = None, priority_filter: Optional[str] = Non
         company  = dict(company)
         log.info(f"[{i}/{len(companies)}] {company['name']} — {company['career_page_url']}")
 
-        soup = fetch_page(company["career_page_url"])
+        result = fetch_page(company["career_page_url"])
 
-        if soup is None:
+        if result is None:
             errors += 1
             log_watch_result(conn, company["id"], 0, 0, "failed",
                              "Could not fetch page", int(time.time() * 1000) - start_ms)
             time.sleep(DELAY_BETWEEN)
             continue
+
+        # Workable API returns structured jobs directly
+        if isinstance(result, tuple) and result[0] == "WORKABLE_API":
+            jobs = result[1]
+            new_count, found_count = save_jobs(conn, jobs, company)
+            total_new   += new_count
+            total_found += found_count
+            status = "ok" if found_count > 0 else "empty"
+            log_watch_result(conn, company["id"], found_count, new_count, status,
+                             duration_ms=int(time.time() * 1000) - start_ms)
+            if new_count > 0:
+                log.info(f"  ✓ Workable API: {found_count} jobs, {new_count} NEW")
+            else:
+                log.info(f"  · Workable API: 0 jobs (none posted)")
+            time.sleep(DELAY_BETWEEN)
+            continue
+
+        soup = result
 
         page_text = soup.get_text().lower()
         if any(phrase in page_text for phrase in [
