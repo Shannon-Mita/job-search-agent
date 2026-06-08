@@ -263,6 +263,16 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
     if jobs:
         return jobs
 
+    # Shared nav-phrase blocklist used by Strategy 2 and 3
+    nav_phrases = {
+        "view all jobs", "all jobs", "careers", "jobs", "apply now",
+        "see all", "privacy overview", "current job openings", "connect with us",
+        "no open positions", "no current openings", "check back later",
+        "view openings", "open roles", "see open roles", "explore careers",
+        "join our team", "work with us", "our team", "about us", "contact us",
+        "learn more", "find out more", "read more", "see more", "view more",
+    }
+
     # Strategy 2: Common CSS patterns
     job_selectors = [
         "[class*='job-item']", "[class*='job-card']", "[class*='job-listing']",
@@ -284,6 +294,8 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
                     continue
                 title = title_el.get_text(strip=True)
                 if len(title) < 3 or len(title) > 150:
+                    continue
+                if title.lower() in nav_phrases:
                     continue
                 loc_el = card.find(class_=re.compile(r"location|city|region", re.I))
                 location = loc_el.get_text(strip=True) if loc_el else ""
@@ -311,16 +323,6 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
     job_url_patterns = re.compile(
         r"/(job|jobs|career|careers|position|opening|vacancy|role|apply)/", re.I
     )
-    # Phrases that indicate navigation, not job titles
-    nav_phrases = {
-        "view all jobs", "all jobs", "careers", "jobs", "apply now",
-        "see all", "privacy overview", "current job openings", "connect with us",
-        "no open positions", "no current openings", "check back later",
-        "view openings", "open roles", "see open roles", "explore careers",
-        "join our team", "work with us", "our team", "about us", "contact us",
-        "learn more", "find out more", "read more", "see more", "view more",
-    }
-    # Minimum words in a real job title
     MIN_TITLE_WORDS = 2
 
     seen_hrefs = set()
