@@ -1,0 +1,121 @@
+{
+  "personal": {
+    "name": "Shannon Smith",
+    "location": "London, UK",
+    "email": "shannonmitasmith@gmail.com"
+  },
+
+  "dream_role": {
+    "target_start": "2026-10-01",
+    "min_salary_base": 50000,
+    "min_total_package": 100000,
+    "notes": "£50k base acceptable only with strong commission/OTE structure hitting £100k+ total. £100k+ base required otherwise."
+  },
+
+  "target_titles": [
+    "Head of People",
+    "Head of Talent",
+    "Head of People & Talent",
+    "Head of Talent Acquisition",
+    "VP People",
+    "VP Talent",
+    "Director of People",
+    "Director of Talent",
+    "Head of Business Development",
+    "VP Business Development",
+    "Head of Partnerships",
+    "VP Partnerships",
+    "Chief of Staff",
+    "VP Operations",
+    "Head of Operations",
+    "Global Mobility Director",
+    "Head of Global Mobility",
+    "EOR Director",
+    "Head of HR",
+    "People Director",
+    "Talent Director",
+    "Commercial Director"
+  ],
+
+  "title_keywords": [
+    "head of people", "head of talent", "vp people", "vp talent",
+    "director of people", "director of talent", "people lead",
+    "talent lead", "head of hr", "people operations",
+    "head of business development", "business development director",
+    "head of partnerships", "partnerships director", "chief of staff",
+    "vp operations", "head of operations", "global mobility",
+    "employer of record", "eor", "commercial director"
+  ],
+
+  "seniority_levels": ["head", "director", "vp", "vice president", "lead", "principal", "chief of staff"],
+
+  "sectors": {
+    "Alt Materials & Packaging":    { "priority": "HIGH",   "weight": 1.0 },
+    "Ocean & Blue Economy":         { "priority": "HIGH",   "weight": 1.0 },
+    "Food Systems & Waste":         { "priority": "HIGH",   "weight": 1.0 },
+    "Circular Economy":             { "priority": "HIGH",   "weight": 1.0 },
+    "Carbon Removal & Capture":     { "priority": "MEDIUM", "weight": 0.8 },
+    "Renewable Energy":             { "priority": "MEDIUM", "weight": 0.8 },
+    "HR Tech / EOR":                { "priority": "MEDIUM", "weight": 0.8 },
+    "Energy Storage & Grid":        { "priority": "LOW",    "weight": 0.5 },
+    "Green Hydrogen":               { "priority": "LOW",    "weight": 0.5 },
+    "Nuclear":                      { "priority": "LOW",    "weight": 0.3 },
+    "Electric Transport":           { "priority": "LOW",    "weight": 0.3 },
+    "Green Industry & Construction":{ "priority": "LOW",    "weight": 0.3 },
+    "Water Tech":                   { "priority": "LOW",    "weight": 0.4 },
+    "Other Impact":                 { "priority": "LOW",    "weight": 0.4 }
+  },
+
+  "excluded_sectors": ["Construction", "Defence", "Oil & Gas"],
+  "excluded_keywords": ["construction manager", "site manager", "quantity surveyor", "civil engineer"],
+
+  "location_preferences": {
+    "hybrid_uk":        { "acceptable": true,  "weight": 1.0 },
+    "remote_global":    { "acceptable": true,  "weight": 0.9 },
+    "fully_onsite_uk":  { "acceptable": true,  "weight": 0.7 },
+    "australia":        { "acceptable": true,  "weight": 0.85 },
+    "relocation_other": { "acceptable": false, "weight": 0.0 }
+  },
+
+  "company_stages": {
+    "startup_seed":    { "acceptable": true, "note": "Bridge income only — salary risk at this stage" },
+    "series_a":        { "acceptable": true },
+    "series_b_c":      { "acceptable": true, "note": "Sweet spot for dream role" },
+    "scale_up":        { "acceptable": true },
+    "enterprise":      { "acceptable": true }
+  },
+
+  "skills": [
+    "end-to-end recruitment", "talent acquisition", "people operations",
+    "ATS implementation", "ATS migration", "global mobility",
+    "employer of record", "HR operations", "immigration",
+    "payroll", "compliance", "vendor management",
+    "business development", "GTM strategy", "sales process",
+    "sales enablement", "strategic partnerships", "lead generation",
+    "fundraising", "product management", "UX design",
+    "process design", "operations", "ISO27001", "GDPR", "DPO"
+  ],
+
+  "bridge_income": {
+    "active": true,
+    "target_day_rate_gbp": 600,
+    "min_day_rate_gbp": 400,
+    "types": [
+      "fractional", "interim", "contract", "consulting",
+      "freelance", "part-time", "project-based"
+    ],
+    "platforms": ["linkedin", "upwork", "peopleperhour", "contra", "bark"]
+  },
+
+  "scoring": {
+    "min_score_to_save":   40,
+    "min_score_to_notify": 70,
+    "weights": {
+      "title_match":      30,
+      "sector_match":     25,
+      "salary_match":     20,
+      "location_match":   15,
+      "seniority_match":  10
+    }
+  }
+}

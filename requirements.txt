@@ -1,0 +1,9 @@
+requests
+beautifulsoup4
+lxml
+pandas
+openpyxl
+python-dotenv
+schedule
+pytest
+# playwright — pending Python 3.14 support
