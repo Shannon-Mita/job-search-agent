@@ -250,6 +250,111 @@ def score_job(job: dict, watchlist: dict, profile: dict) -> tuple[int, dict]:
     return total, breakdown
 
 
+# ── Description enrichment ───────────────────────────────────────────────────
+
+def enrich_descriptions(conn) -> int:
+    """
+    Second-pass description fetcher.
+    For jobs with empty descriptions, attempts to fetch from known ATS APIs.
+    Returns number of jobs enriched.
+    """
+    import requests
+    from bs4 import BeautifulSoup
+    import re
+
+    cursor = conn.cursor()
+    empty_jobs = cursor.execute(
+        "SELECT id, url, company_name FROM jobs WHERE (description IS NULL OR description = '') AND dismissed = 0"
+    ).fetchall()
+
+    log.info(f"Enriching descriptions for {len(empty_jobs)} jobs")
+    enriched = 0
+
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (compatible; JobAgent/1.0)"
+    }
+
+    for job in empty_jobs:
+        job_id = job["id"]
+        url    = job["url"] or ""
+        desc   = None
+
+        try:
+            # Greenhouse individual job
+            m = re.search(r"greenhouse\.io/([^/]+)/jobs/(\d+)", url)
+            if m:
+                slug  = m.group(1)
+                gh_id = m.group(2)
+                resp = requests.get(
+                    f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs/{gh_id}?content=true",
+                    headers=HEADERS, timeout=10
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw  = data.get("content", "") or ""
+                    if raw:
+                        soup = BeautifulSoup(raw, "lxml")
+                        desc = soup.get_text(separator=" ", strip=True)[:3000]
+
+            # Lever individual job
+            if not desc:
+                m = re.search(r"jobs\.lever\.co/([^/]+)/([a-f0-9-]{36})", url)
+                if m:
+                    slug    = m.group(1)
+                    post_id = m.group(2)
+                    resp = requests.get(
+                        f"https://api.lever.co/v0/postings/{slug}/{post_id}",
+                        headers=HEADERS, timeout=10
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        raw  = data.get("descriptionPlain", "") or data.get("description", "") or ""
+                        if raw and "<" in raw:
+                            soup = BeautifulSoup(raw, "lxml")
+                            desc = soup.get_text(separator=" ", strip=True)[:3000]
+                        elif raw:
+                            desc = raw[:3000]
+
+            # Ashby individual job
+            if not desc:
+                m = re.search(r"ashbyhq\.com/([^/]+)/([a-f0-9-]{36})", url)
+                if m:
+                    slug    = m.group(1)
+                    post_id = m.group(2)
+                    resp = requests.get(
+                        "https://jobs.ashbyhq.com/api/non-user-graphql",
+                        json={"operationName": "ApiJobPosting",
+                              "variables": {"jobPostingId": post_id},
+                              "query": "query ApiJobPosting($jobPostingId: String!) { jobPosting(jobPostingId: $jobPostingId) { title descriptionSections { descriptionHtml } } }"},
+                        headers={**HEADERS, "Content-Type": "application/json"},
+                        timeout=10
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        sections = (data.get("data", {})
+                                       .get("jobPosting", {})
+                                       .get("descriptionSections", []))
+                        raw = " ".join(s.get("descriptionHtml", "") for s in sections)
+                        if raw:
+                            soup = BeautifulSoup(raw, "lxml")
+                            desc = soup.get_text(separator=" ", strip=True)[:3000]
+
+            if desc:
+                cursor.execute(
+                    "UPDATE jobs SET description = ? WHERE id = ?",
+                    (desc, job_id)
+                )
+                enriched += 1
+
+        except Exception as e:
+            log.warning(f"Enrichment failed for job {job_id}: {e}")
+            continue
+
+    conn.commit()
+    log.info(f"Enriched {enriched} job descriptions")
+    return enriched
+
+
 # ── Database operations ───────────────────────────────────────────────────────
 
 def load_watchlist(conn) -> dict:
@@ -271,6 +376,9 @@ def run_scoring(rescore_all: bool = False) -> dict:
     conn    = get_conn()
     profile = get_profile()
     watchlist = load_watchlist(conn)
+
+    # Enrich empty descriptions before scoring
+    enrich_descriptions(conn)
 
     if rescore_all:
         jobs = conn.execute("SELECT * FROM jobs WHERE dismissed = 0").fetchall()
