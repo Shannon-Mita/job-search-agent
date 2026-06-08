@@ -1,73 +1,187 @@
 {
   "personal": {
     "name": "Shannon Smith",
-    "location": "London, UK",
-    "email": "shannonmitasmith@gmail.com"
+    "email": "shannonmitasmith@gmail.com",
+    "location": "London, UK"
+  },
+
+  "matching_philosophy": {
+    "priority_order": ["company", "earning_potential", "role_level"],
+    "notes": [
+      "Company fit outranks everything. Any role at a watchlist company is surfaced if compensation signals pass.",
+      "Earning potential is second. OTE, equity, commission structure matter more than base salary alone.",
+      "Role level and title are least important. A recruitment role at the right company with right comp is valid.",
+      "Title-first searching is explicitly rejected. Skills and outcomes drive matching.",
+      "Watchlist companies use permissive matching. Open market uses strict keyword + compensation scoring."
+    ]
   },
 
   "dream_role": {
     "target_start": "2026-10-01",
     "min_salary_base": 50000,
     "min_total_package": 100000,
-    "notes": "£50k base acceptable only with strong commission/OTE structure hitting £100k+ total. £100k+ base required otherwise."
+    "notes": "£50k base acceptable with strong OTE/commission hitting £100k+ total. £100k+ base required for no-commission roles."
   },
 
   "target_titles": [
-    "Head of People",
-    "Head of Talent",
-    "Head of People & Talent",
-    "Head of Talent Acquisition",
-    "VP People",
-    "VP Talent",
-    "Director of People",
-    "Director of Talent",
+    "Business Development Manager",
+    "Business Development Director",
+    "Business Development Lead",
     "Head of Business Development",
     "VP Business Development",
-    "Head of Partnerships",
-    "VP Partnerships",
+    "Senior Business Development Manager",
     "Chief of Staff",
     "VP Operations",
     "Head of Operations",
+    "Director of Operations",
+    "Sales Enablement Manager",
+    "Sales Enablement Lead",
+    "Head of Sales Enablement",
     "Global Mobility Director",
     "Head of Global Mobility",
-    "EOR Director",
+    "Global Mobility Manager",
+    "Market Entry Specialist",
+    "Market Entry Manager",
+    "Head of Market Entry",
+    "Head of People",
+    "Head of Talent",
+    "Head of People & Talent",
     "Head of HR",
     "People Director",
     "Talent Director",
-    "Commercial Director"
+    "Head of Partnerships",
+    "Partnerships Director",
+    "VP Partnerships",
+    "Commercial Director",
+    "Head of Commercial"
   ],
 
   "title_keywords": [
-    "head of people", "head of talent", "vp people", "vp talent",
-    "director of people", "director of talent", "people lead",
-    "talent lead", "head of hr", "people operations",
-    "head of business development", "business development director",
-    "head of partnerships", "partnerships director", "chief of staff",
-    "vp operations", "head of operations", "global mobility",
-    "employer of record", "eor", "commercial director"
+    "business development", "head of bd", "vp business development",
+    "chief of staff", "vp operations", "head of operations",
+    "sales enablement", "global mobility", "market entry",
+    "head of people", "head of talent", "head of hr",
+    "head of partnerships", "partnerships director",
+    "commercial director", "head of commercial",
+    "employer of record", "eor", "people operations"
   ],
 
-  "seniority_levels": ["head", "director", "vp", "vice president", "lead", "principal", "chief of staff"],
+  "skills_keywords": {
+    "core": [
+      "global mobility",
+      "employer of record",
+      "EOR",
+      "talent acquisition",
+      "business development",
+      "market entry",
+      "sales enablement",
+      "GTM",
+      "go-to-market",
+      "people operations",
+      "HR operations",
+      "workforce expansion",
+      "sales operations",
+      "operation workflows",
+      "sales workflows",
+      "strategic planning",
+      "operational efficiency"
+    ],
+    "supporting": [
+      "ATS",
+      "immigration",
+      "compliance",
+      "partnerships",
+      "revenue growth",
+      "pipeline",
+      "stakeholder management",
+      "process design",
+      "scale",
+      "international expansion",
+      "cross-functional"
+    ]
+  },
+
+  "earning_signals": [
+    "OTE",
+    "on-target earnings",
+    "commission",
+    "uncapped",
+    "bonus",
+    "equity",
+    "P&L",
+    "budget ownership",
+    "profit sharing",
+    "share options",
+    "EMI",
+    "LTIP",
+    "competitive salary",
+    "attractive salary",
+    "salary negotiable"
+  ],
+
+  "context_signals": [
+    "climate",
+    "sustainability",
+    "net zero",
+    "circular",
+    "alternative materials",
+    "food systems",
+    "ocean",
+    "renewable",
+    "impact",
+    "B Corp",
+    "carbon",
+    "clean tech",
+    "green"
+  ],
+
+  "seniority_signals": {
+    "title_terms": [
+      "head", "director", "vp", "vice president", "chief",
+      "lead", "principal", "senior", "manager"
+    ],
+    "description_terms": [
+      "reports to CEO", "reports to COO", "reports to founder",
+      "board", "P&L", "budget ownership", "team leadership",
+      "manage a team", "line management", "Series A", "Series B", "Series C",
+      "scale-up", "scaleup", "growth stage"
+    ]
+  },
+
+  "watchlist_matching": {
+    "mode": "permissive",
+    "logic": "Any role at a watchlist company is surfaced if: (a) at least 1 skills keyword matches, OR (b) earning signals suggest £100k+ potential. Title matching is optional for watchlist companies.",
+    "min_score_to_surface": 40
+  },
+
+  "open_market_matching": {
+    "mode": "precise",
+    "logic": "Roles from job boards must match: (a) at least 2 skills keywords + 1 context signal, OR (b) title match + 1 earning signal.",
+    "min_score_to_surface": 60
+  },
 
   "sectors": {
-    "Alt Materials & Packaging":    { "priority": "HIGH",   "weight": 1.0 },
-    "Ocean & Blue Economy":         { "priority": "HIGH",   "weight": 1.0 },
-    "Food Systems & Waste":         { "priority": "HIGH",   "weight": 1.0 },
-    "Circular Economy":             { "priority": "HIGH",   "weight": 1.0 },
-    "Carbon Removal & Capture":     { "priority": "MEDIUM", "weight": 0.8 },
-    "Renewable Energy":             { "priority": "MEDIUM", "weight": 0.8 },
-    "HR Tech / EOR":                { "priority": "MEDIUM", "weight": 0.8 },
-    "Energy Storage & Grid":        { "priority": "LOW",    "weight": 0.5 },
-    "Green Hydrogen":               { "priority": "LOW",    "weight": 0.5 },
-    "Nuclear":                      { "priority": "LOW",    "weight": 0.3 },
-    "Electric Transport":           { "priority": "LOW",    "weight": 0.3 },
-    "Green Industry & Construction":{ "priority": "LOW",    "weight": 0.3 },
-    "Water Tech":                   { "priority": "LOW",    "weight": 0.4 },
-    "Other Impact":                 { "priority": "LOW",    "weight": 0.4 }
+    "Alt Materials & Packaging":     { "priority": "HIGH",   "weight": 1.0 },
+    "Ocean & Blue Economy":          { "priority": "HIGH",   "weight": 1.0 },
+    "Food Systems & Waste":          { "priority": "HIGH",   "weight": 1.0 },
+    "Circular Economy":              { "priority": "HIGH",   "weight": 1.0 },
+    "Carbon Removal & Capture":      { "priority": "MEDIUM", "weight": 0.8 },
+    "Renewable Energy":              { "priority": "MEDIUM", "weight": 0.8 },
+    "HR Tech / EOR":                 { "priority": "MEDIUM", "weight": 0.8 },
+    "Energy Storage & Grid":         { "priority": "LOW",    "weight": 0.5 },
+    "Green Hydrogen":                { "priority": "LOW",    "weight": 0.5 },
+    "Nuclear":                       { "priority": "LOW",    "weight": 0.3 },
+    "Electric Transport":            { "priority": "LOW",    "weight": 0.3 },
+    "Green Industry & Construction": { "priority": "LOW",    "weight": 0.3 },
+    "Water Tech":                    { "priority": "LOW",    "weight": 0.4 },
+    "Other Impact":                  { "priority": "LOW",    "weight": 0.4 }
   },
 
   "excluded_sectors": ["Construction", "Defence", "Oil & Gas"],
-  "excluded_keywords": ["construction manager", "site manager", "quantity surveyor", "civil engineer"],
+  "excluded_keywords": [
+    "construction manager", "site manager", "quantity surveyor",
+    "civil engineer", "defence contractor", "oil exploration"
+  ],
 
   "location_preferences": {
     "hybrid_uk":        { "acceptable": true,  "weight": 1.0 },
@@ -78,31 +192,25 @@
   },
 
   "company_stages": {
-    "startup_seed":    { "acceptable": true, "note": "Bridge income only — salary risk at this stage" },
-    "series_a":        { "acceptable": true },
-    "series_b_c":      { "acceptable": true, "note": "Sweet spot for dream role" },
-    "scale_up":        { "acceptable": true },
-    "enterprise":      { "acceptable": true }
+    "startup_seed":  { "acceptable": true,  "note": "Bridge income only — salary risk" },
+    "series_a":      { "acceptable": true },
+    "series_b_c":    { "acceptable": true,  "note": "Sweet spot for dream role" },
+    "scale_up":      { "acceptable": true },
+    "enterprise":    { "acceptable": true }
   },
-
-  "skills": [
-    "end-to-end recruitment", "talent acquisition", "people operations",
-    "ATS implementation", "ATS migration", "global mobility",
-    "employer of record", "HR operations", "immigration",
-    "payroll", "compliance", "vendor management",
-    "business development", "GTM strategy", "sales process",
-    "sales enablement", "strategic partnerships", "lead generation",
-    "fundraising", "product management", "UX design",
-    "process design", "operations", "ISO27001", "GDPR", "DPO"
-  ],
 
   "bridge_income": {
     "active": true,
     "target_day_rate_gbp": 600,
     "min_day_rate_gbp": 400,
     "types": [
-      "fractional", "interim", "contract", "consulting",
-      "freelance", "part-time", "project-based"
+      "fractional", "interim", "contract",
+      "consulting", "freelance", "part-time", "project-based"
+    ],
+    "keywords": [
+      "fractional", "interim", "contract", "freelance",
+      "part-time", "project", "consulting", "advisory",
+      "fixed term", "maternity cover", "parental cover"
     ],
     "platforms": ["linkedin", "upwork", "peopleperhour", "contra", "bark"]
   },
@@ -111,11 +219,17 @@
     "min_score_to_save":   40,
     "min_score_to_notify": 70,
     "weights": {
-      "title_match":      30,
-      "sector_match":     25,
-      "salary_match":     20,
-      "location_match":   15,
-      "seniority_match":  10
-    }
+      "company_watchlist_match": 30,
+      "earning_signal_match":    25,
+      "skills_keyword_match":    20,
+      "sector_match":            15,
+      "location_match":          10
+    },
+    "notes": [
+      "Title match deliberately excluded — company and earnings drive scoring.",
+      "Company watchlist match is highest weight.",
+      "Earning signals second — compensation over level.",
+      "Skills keywords third — what you can do, not what you're called."
+    ]
   }
 }
