@@ -90,6 +90,33 @@ def check_url(url: str, timeout: int = 8) -> tuple:
                 except Exception:
                     return False, 0
 
+        # Greenhouse: real accounts return JSON with jobs array
+        if "greenhouse.io" in url:
+            try:
+                slug = url.rstrip("/").split("/")[-1]
+                api = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
+                r = requests.get(api, timeout=6)
+                if r.status_code != 200:
+                    return False, 404
+                data = r.json()
+                if "jobs" not in data:
+                    return False, 404
+            except Exception:
+                return False, 0
+
+        # Lever: real accounts return a jobs array
+        if "lever.co" in url:
+            try:
+                slug = url.rstrip("/").split("/")[-1]
+                api = f"https://api.lever.co/v0/postings/{slug}"
+                r = requests.get(api, timeout=6)
+                if r.status_code != 200:
+                    return False, 404
+                if not isinstance(r.json(), list):
+                    return False, 404
+            except Exception:
+                return False, 0
+
         return True, 200
     except requests.exceptions.RequestException:
         return False, 0
