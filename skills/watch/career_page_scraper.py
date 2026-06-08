@@ -440,11 +440,20 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
                     continue
                 title = title_el.get_text(strip=True)
 
-                # Split concatenated title+location (e.g. "Product ManagerLondon")
-                import re as _re
-                title = _re.sub(r'([a-z])([A-Z][a-z])', r'\1 | \2', title)
+                # Clean concatenated title+location/type garbage
+                # Pattern 1: camelCase boundary (ProductManagerLondon)
+                title = re.sub(r'([a-z])([A-Z][a-z])', r'\1 | \2', title)
+                # Pattern 2: uppercase run into capitalised word (IIIFull, VPHead)
+                title = re.sub(r'([A-Z]{2,})([A-Z][a-z])', r'\1 | \2', title)
+                # Take only the part before first separator
                 if " | " in title:
                     title = title.split(" | ")[0].strip()
+                # Remove trailing job type suffixes that leaked in
+                for suffix in [" Full Time", " Part Time", " Contract",
+                               " Permanent", " Temporary", "Full Time",
+                               "Part Time"]:
+                    if title.endswith(suffix):
+                        title = title[:-len(suffix)].strip()
 
                 if len(title) < 3 or len(title) > 150:
                     continue
