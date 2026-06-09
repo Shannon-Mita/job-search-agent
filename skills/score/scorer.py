@@ -525,10 +525,18 @@ def run_simple_scoring(rescore_all: bool = False) -> dict:
         # Partial match — title contains relevant words
         if title_score == 0:
             relevant_words = [
-                "business development", "partnerships", "commercial",
-                "people", "talent", "hr", "operations", "mobility",
-                "enablement", "chief of staff", "market entry",
-                "sales", "growth", "bd", "gtm",
+                "business development", "head of bd",
+                "partnerships", "head of partnerships",
+                "chief of staff",
+                "people operations", "head of people", "head of talent",
+                "hr operations", "head of hr",
+                "sales enablement", "head of sales enablement",
+                "global mobility", "head of global mobility",
+                "market entry",
+                "go-to-market", "gtm",
+                "workforce", "talent acquisition",
+                "commercial director", "head of commercial",
+                "vp operations", "head of operations", "director of operations",
             ]
             for word in relevant_words:
                 if word in title:
