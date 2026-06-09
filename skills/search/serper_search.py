@@ -121,8 +121,13 @@ def extract_job_from_result(result: dict, source: str) -> Optional[dict]:
         "about us", "home page", "login", "sign up",
         "climate jobs", "job board", "find jobs",
         "browse jobs", "search jobs",
+        " jobs in ", " jobs for ", "job listings",
     ]
     if any(p in title.lower() for p in skip_patterns):
+        return None
+
+    # Skip LinkedIn/Indeed collection pages ("329 Solar Energy... jobs in UK")
+    if re.match(r"^\d[\d,+]*\s+", title):
         return None
 
     # ── Company extraction ────────────────────────────────────────────

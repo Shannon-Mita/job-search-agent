@@ -456,6 +456,133 @@ def run_scoring(rescore_all: bool = False) -> dict:
     return summary
 
 
+def run_simple_scoring(rescore_all: bool = False) -> dict:
+    """
+    Simplified scoring — surfaces any role that matches on company OR title.
+    No description needed. Company on watchlist = show it.
+    Title keyword match = show it.
+    """
+    conn     = get_conn()
+    profile  = get_profile()
+    watchlist = load_watchlist(conn)
+
+    title_keywords = profile.get("title_keywords", [])
+    target_titles  = [t.lower() for t in profile.get("target_titles", [])]
+    all_title_terms = title_keywords + target_titles
+
+    if rescore_all:
+        jobs = conn.execute(
+            "SELECT * FROM jobs WHERE dismissed = 0"
+        ).fetchall()
+    else:
+        jobs = conn.execute(
+            "SELECT * FROM jobs WHERE score = 0 AND dismissed = 0"
+        ).fetchall()
+
+    log.info(f"Simple scoring {len(jobs)} jobs")
+
+    scored     = 0
+    notifiable = 0
+    excluded   = 0
+
+    for job in jobs:
+        job = dict(job)
+        title       = (job.get("title") or "").lower()
+        company     = (job.get("company_name") or "").lower()
+        location    = (job.get("location") or "").lower()
+        description = (job.get("description") or "").lower()
+
+        # Hard exclusions first
+        excluded_flag, reason = is_excluded(
+            job.get("title", ""), job.get("description", ""), profile
+        )
+        if excluded_flag:
+            conn.execute(
+                "UPDATE jobs SET score = -1, dismissed = 1 WHERE id = ?",
+                (job["id"],)
+            )
+            excluded += 1
+            continue
+
+        score = 0
+        breakdown = {}
+
+        # Component 1: Company on watchlist (0-30)
+        company_score, company_detail = score_company_watchlist(
+            job.get("company_name", ""), watchlist
+        )
+        score += company_score
+        breakdown["company"] = {"score": company_score, "detail": company_detail}
+
+        # Component 2: Title keyword match (0-40)
+        title_score = 0
+        matched_terms = []
+        for term in all_title_terms:
+            if term.lower() in title:
+                title_score = 40
+                matched_terms.append(term)
+                break
+        # Partial match — title contains relevant words
+        if title_score == 0:
+            relevant_words = [
+                "business development", "partnerships", "commercial",
+                "people", "talent", "hr", "operations", "mobility",
+                "enablement", "chief of staff", "market entry",
+                "sales", "growth", "bd", "gtm",
+            ]
+            for word in relevant_words:
+                if word in title:
+                    title_score = 20
+                    matched_terms.append(word)
+                    break
+        score += title_score
+        breakdown["title"] = {"score": title_score, "matched": matched_terms}
+
+        # Component 3: Location (0-15)
+        loc_score, loc_detail = score_location(job.get("location", ""), profile)
+        # Rescale to 15 max
+        loc_score = int(loc_score * 1.5)
+        score += loc_score
+        breakdown["location"] = {"score": loc_score, "detail": loc_detail}
+
+        # Component 4: Sector (0-15)
+        sec_score, sec_detail = score_sector(job.get("sector", ""), profile)
+        score += sec_score
+        breakdown["sector"] = {"score": sec_score, "detail": sec_detail}
+
+        # Notify threshold: watchlist company, OR known company + strong title match
+        # Unknown company alone is not enough — too many false positives from Serper
+        known_company = company_score > 0 or (job.get("company_name", "") not in ("Unknown", "", None))
+        notify = 1 if (company_score >= 12 or (title_score >= 40 and known_company)) else 0
+
+        conn.execute(
+            """
+            UPDATE jobs SET score = ?, score_breakdown = ?, notified = ?
+            WHERE id = ?
+            """,
+            (score, json.dumps(breakdown), notify, job["id"])
+        )
+        scored += 1
+        if notify:
+            notifiable += 1
+            log.info(f"  NOTIFY — {job.get('title')} @ {job.get('company_name')} [{score}pts]")
+
+    conn.commit()
+    conn.close()
+
+    summary = {
+        "jobs_scored":   scored,
+        "jobs_excluded": excluded,
+        "notifiable":    notifiable,
+    }
+    log.info(f"Done — {scored} scored, {notifiable} notifiable, {excluded} excluded")
+    return summary
+
+
+# Use simple scoring as default
+run_scoring = run_simple_scoring
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Score jobs against Shannon's profile")
