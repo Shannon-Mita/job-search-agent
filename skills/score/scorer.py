@@ -190,6 +190,13 @@ def score_location(location: str, profile: dict) -> tuple[int, str]:
                                      "los angeles", "boston", "chicago"]):
         return 3, "us_onsite"
 
+    # Explicitly non-relevant locations — don't surface these
+    non_relevant = ["ghana", "indonesia", "nigeria", "kenya", "uganda",
+                    "tanzania", "ethiopia", "bangladesh", "vietnam",
+                    "cambodia", "myanmar"]
+    if any(w in loc_lower for w in non_relevant):
+        return 0, f"non_relevant_location:{location[:30]}"
+
     return 4, f"other:{location[:30]}"
 
 
@@ -421,6 +428,7 @@ def run_scoring(rescore_all: bool = False) -> dict:
         scored += 1
 
         if total >= min_notify:
+            notifiable += 1
             log.info(
                 f"  HIGH SCORE {total}/100 — {job['title']} @ {job['company_name']} "
                 f"[{job.get('sector', 'unknown')}]"

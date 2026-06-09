@@ -480,7 +480,9 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
                 # Remove trailing job type suffixes that leaked in
                 for suffix in [" Full Time", " Part Time", " Contract",
                                " Permanent", " Temporary", "Full Time",
-                               "Part Time"]:
+                               "Part Time", " View Job", "View Job",
+                               " Apply Now", "Apply Now", " Learn More",
+                               "Learn More"]:
                     if title.endswith(suffix):
                         title = title[:-len(suffix)].strip()
 
