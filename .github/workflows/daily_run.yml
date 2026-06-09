@@ -1,0 +1,48 @@
+name: Daily Job Search
+
+on:
+  schedule:
+    # 7am UK time (UTC in winter, BST = UTC+1 in summer)
+    - cron: '0 7 * * *'
+  workflow_dispatch:  # allows manual trigger from GitHub UI
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 lxml pandas openpyxl \
+                      python-dotenv schedule pytest playwright
+          playwright install chromium --with-deps
+
+      - name: Create .env from secrets
+        run: |
+          echo "GMAIL_ADDRESS=${{ secrets.GMAIL_ADDRESS }}" >> .env
+          echo "GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}" >> .env
+          echo "NOTIFY_EMAIL=${{ secrets.NOTIFY_EMAIL }}" >> .env
+          echo "SERPER_API_KEY=${{ secrets.SERPER_API_KEY }}" >> .env
+
+      - name: Initialise database
+        run: python skills/profile/init_db.py
+
+      - name: Scrape watchlist career pages
+        run: python skills/watch/career_page_scraper.py
+
+      - name: Search climate boards via Serper
+        run: python skills/search/serper_search.py
+
+      - name: Score all jobs
+        run: python skills/score/scorer.py --rescore-all
+
+      - name: Send email digest
+        run: python skills/notify/email_digest.py
