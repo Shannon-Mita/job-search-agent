@@ -550,10 +550,10 @@ def run_simple_scoring(rescore_all: bool = False) -> dict:
         score += sec_score
         breakdown["sector"] = {"score": sec_score, "detail": sec_detail}
 
-        # Notify threshold: watchlist company, OR known company + strong title match
-        # Unknown company alone is not enough — too many false positives from Serper
-        known_company = company_score > 0 or (job.get("company_name", "") not in ("Unknown", "", None))
-        notify = 1 if (company_score >= 12 or (title_score >= 40 and known_company)) else 0
+        # Notify threshold: watchlist company AND relevant title
+        # Both must be true — eliminates farmworkers at good companies
+        # and random BD roles at unknown companies
+        notify = 1 if (company_score >= 12 and title_score >= 20) else 0
 
         conn.execute(
             """
