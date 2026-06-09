@@ -107,7 +107,7 @@ def extract_job_from_result(result: dict, source: str) -> Optional[dict]:
     if not title or not url:
         return None
 
-    # Clean title — remove site name suffix (e.g. "Head of BD | Climatebase")
+    # Clean title — remove site name suffix
     for sep in [" | ", " - ", " — ", " · "]:
         if sep in title:
             title = title.split(sep)[0].strip()
@@ -120,43 +120,71 @@ def extract_job_from_result(result: dict, source: str) -> Optional[dict]:
         "jobs at ", "careers at ", "working at ",
         "about us", "home page", "login", "sign up",
         "climate jobs", "job board", "find jobs",
+        "browse jobs", "search jobs",
     ]
     if any(p in title.lower() for p in skip_patterns):
         return None
 
-    # Extract company from snippet or URL
+    # ── Company extraction ────────────────────────────────────────────
     company = ""
-    # Try "at Company" pattern in snippet
-    m = re.search(r"\bat ([A-Z][A-Za-z\s&]+?)[\.,\-]", snippet)
-    if m:
-        company = m.group(1).strip()
 
-    # Parse salary from snippet
+    # Pattern 1: Climatebase snippet format "Company Name; Location; ..."
+    m = re.search(r"^([^;]+);\s*[A-Z]", snippet)
+    if m:
+        candidate = m.group(1).strip()
+        # Sanity check — company names are 2-50 chars, not sentence fragments
+        if 2 <= len(candidate) <= 50 and not candidate.endswith("."):
+            company = candidate
+
+    # Pattern 2: "at Company Name" in snippet
+    if not company:
+        m = re.search(r"\bat ([A-Z][A-Za-z0-9\s&\-\.]+?)[\.,\-\|;]", snippet)
+        if m:
+            company = m.group(1).strip()
+
+    # Pattern 3: Extract from URL slug for known boards
+    if not company and "climatebase.org" in url:
+        # climatebase.org/jobs/{company-slug}/{job-slug}
+        m = re.search(r"/jobs/([^/]+)/[^/]+$", url)
+        if m:
+            slug = m.group(1).replace("-", " ").title()
+            company = slug
+
+    # ── Location extraction ───────────────────────────────────────────
+    location = ""
+
+    # Climatebase format: "Company; Location; ..."
+    parts = snippet.split(";")
+    if len(parts) >= 2:
+        loc_candidate = parts[1].strip()
+        if len(loc_candidate) < 50:
+            location = loc_candidate
+
+    # Fallback: scan for known location terms
+    if not location:
+        loc_patterns = [
+            r"\b(London|Manchester|Bristol|Edinburgh|Birmingham|Remote|Hybrid|UK|United Kingdom)\b",
+        ]
+        for pattern in loc_patterns:
+            m = re.search(pattern, snippet, re.I)
+            if m:
+                location = m.group(1)
+                break
+
+    # ── Salary extraction ─────────────────────────────────────────────
     salary_raw = ""
     salary_match = re.search(r"£[\d,k\s\-]+(?:per year|pa|salary|OTE)?", snippet, re.I)
     if salary_match:
         salary_raw = salary_match.group(0)
 
-    # Location from snippet
-    location = ""
-    loc_patterns = [
-        r"\b(London|Manchester|Bristol|Edinburgh|Birmingham|Remote|Hybrid|UK)\b",
-        r"\b([A-Z][a-z]+,\s*UK)\b",
-    ]
-    for pattern in loc_patterns:
-        m = re.search(pattern, snippet)
-        if m:
-            location = m.group(1)
-            break
-
     return {
-        "title":       title,
+        "title":        title,
         "company_name": company or "Unknown",
-        "location":    location,
-        "salary_raw":  salary_raw,
-        "url":         url,
-        "description": snippet[:MAX_DESCRIPTION],
-        "source":      source,
+        "location":     location,
+        "salary_raw":   salary_raw,
+        "url":          url,
+        "description":  snippet[:MAX_DESCRIPTION],
+        "source":       source,
     }
 
 
