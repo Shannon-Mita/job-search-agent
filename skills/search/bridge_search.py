@@ -96,21 +96,43 @@ def extract_bridge_job(result: dict, source: str) -> Optional[dict]:
 
     # Skip irrelevant pages
     skip = [
-        "how to find", "guide to", "what is", "top 10",
+        "how to find", "guide to", "what is", "top 10", "101",
         "best freelance", "sign up", "login", "register",
         "post a job", "hire a", "find a freelancer",
+        "why are", "overlooked", "article", "blog",
+        "newsletter", "podcast", "webinar", "course",
+        "salary guide", "salary report", "market report",
     ]
     if any(p in title.lower() for p in skip):
         return None
 
-    # Skip LinkedIn collection pages ("329 jobs in X")
-    if re.match(r"^\d[\d,+]*\s+", title):
+    # Skip if title looks like a person's name
+    # Pattern: First [Middle] Last — 2-3 capitalised words, no job indicators
+    job_indicators = [
+        "manager", "director", "head", "lead", "consultant", "specialist",
+        "associate", "officer", "analyst", "advisor", "executive", "partner",
+        "engineer", "designer", "developer", "coordinator", "assistant",
+        "interim", "fractional", "contract", "freelance", "remote",
+        "operations", "business", "people", "talent", "commercial",
+    ]
+    words = title.split()
+    title_lower_words = title.lower().split()
+    if (2 <= len(words) <= 4
+            and all(w[0].isupper() for w in words if len(w) > 1)
+            and not any(ind in title.lower() for ind in job_indicators)):
         return None
 
-    # Skip person names (First Last - Title pattern)
-    if re.match(r"^[A-Z][a-z]+ [A-Z][a-z\.]+\s*$", title):
+    # Skip if title is a question
+    if title.endswith("?"):
         return None
-    if re.match(r"^[A-Z][a-z]+ [A-Z][a-z]+ [-–]", title):
+
+    # Skip if title starts with interrogative
+    interrogatives = ["why", "how", "what", "when", "where", "who", "which"]
+    if title_lower_words and title_lower_words[0] in interrogatives:
+        return None
+
+    # Skip LinkedIn collection pages ("329 jobs in X")
+    if re.match(r"^\d[\d,+]*\s+", title):
         return None
 
     # Extract company/client
