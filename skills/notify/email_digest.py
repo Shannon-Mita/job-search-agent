@@ -37,8 +37,8 @@ GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
 NOTIFY_EMAIL       = os.getenv("NOTIFY_EMAIL")
 
 
-def get_notifiable_jobs(conn) -> list:
-    """Get all notifiable jobs not yet sent, ordered by score."""
+def get_dream_jobs(conn) -> list:
+    """Get notifiable dream role jobs ordered by score."""
     rows = conn.execute("""
         SELECT
             j.id, j.title, j.company_name, j.location,
@@ -50,19 +50,36 @@ def get_notifiable_jobs(conn) -> list:
         WHERE j.notified = 1
           AND j.dismissed = 0
           AND j.score > 0
+          AND j.mode = 'dream'
         ORDER BY j.score DESC, j.first_seen DESC
     """).fetchall()
     return [dict(r) for r in rows]
 
 
-def build_html_email(jobs: list, profile: dict) -> str:
+def get_bridge_jobs(conn) -> list:
+    """Get bridge income opportunities ordered by recency."""
+    rows = conn.execute("""
+        SELECT
+            j.id, j.title, j.company_name, j.location,
+            j.url, j.score, j.sector, j.source,
+            j.salary_raw, j.first_seen
+        FROM jobs j
+        WHERE j.mode = 'bridge'
+          AND j.dismissed = 0
+        ORDER BY j.first_seen DESC
+        LIMIT 20
+    """).fetchall()
+    return [dict(r) for r in rows]
+
+
+def build_html_email(dream_jobs: list, bridge_jobs: list, profile: dict) -> str:
     """Build a clean HTML email digest."""
     date_str = datetime.now().strftime("%A %d %B %Y")
-    count    = len(jobs)
+    total    = len(dream_jobs) + len(bridge_jobs)
 
     # Group by score tier
-    top_roles  = [j for j in jobs if j["score"] >= 60]
-    good_roles = [j for j in jobs if 40 <= j["score"] < 60]
+    top_roles  = [j for j in dream_jobs if j["score"] >= 60]
+    good_roles = [j for j in dream_jobs if 40 <= j["score"] < 60]
 
     def job_row(job: dict) -> str:
         title    = job["title"] or "Untitled"
@@ -125,6 +142,47 @@ def build_html_email(jobs: list, profile: dict) -> str:
     top_section  = section("Strong matches", top_roles, "#0F6E56")
     good_section = section("Worth reviewing", good_roles, "#185FA5")
 
+    # Bridge income section
+    def bridge_row(job: dict) -> str:
+        title    = job["title"] or "Untitled"
+        company  = job["company_name"] or ""
+        location = job["location"] or "Remote"
+        url      = job["url"] or "#"
+        salary   = job.get("salary_raw") or ""
+        source   = job.get("source", "").replace("serper_", "").replace("_", " ")
+        salary_line = f'<div style="font-size:12px;color:#6B7280;margin-top:2px;">{salary}</div>' if salary else ""
+        return f"""
+        <tr>
+          <td style="padding:12px 16px;border-bottom:1px solid #F3F4F6;vertical-align:top;">
+            <a href="{url}" style="font-size:14px;font-weight:500;color:#111827;text-decoration:none;">{title}</a>
+            <div style="font-size:12px;color:#6B7280;margin-top:2px;">{location} · via {source}</div>
+            {salary_line}
+          </td>
+          <td style="padding:12px 16px;border-bottom:1px solid #F3F4F6;vertical-align:top;text-align:right;">
+            <a href="{url}" style="font-size:12px;color:#185FA5;text-decoration:none;">View →</a>
+          </td>
+        </tr>"""
+
+    bridge_section = ""
+    if bridge_jobs:
+        bridge_rows = "".join(bridge_row(j) for j in bridge_jobs)
+        bridge_section = f"""
+        <div style="margin-bottom:24px;">
+          <div style="font-size:11px;font-weight:500;letter-spacing:0.08em;
+                      text-transform:uppercase;color:#6B21A8;
+                      margin-bottom:8px;padding-bottom:6px;
+                      border-bottom:2px solid #6B21A8;">
+            Bridge income — freelance / contract / fractional ({len(bridge_jobs)})
+          </div>
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="border:1px solid #E5E7EB;border-radius:8px;
+                        border-collapse:collapse;overflow:hidden;">
+            {bridge_rows}
+          </table>
+        </div>"""
+
+    all_jobs = dream_jobs + bridge_jobs
+
     return f"""
 <!DOCTYPE html>
 <html>
@@ -139,18 +197,19 @@ def build_html_email(jobs: list, profile: dict) -> str:
         Job Agent Digest
       </div>
       <div style="font-size:13px;color:#6B7280;margin-top:4px;">
-        {date_str} · {count} role{'s' if count != 1 else ''} found
+        {date_str} · {total} role{'s' if total != 1 else ''} found
       </div>
     </div>
 
     {top_section}
     {good_section}
+    {bridge_section}
 
     <!-- Footer -->
     <div style="font-size:12px;color:#9CA3AF;margin-top:24px;
                 padding-top:16px;border-top:1px solid #E5E7EB;">
-      Sourced from {len(set(j['source'] for j in jobs))} sources
-      across {len(set(j['company_name'] for j in jobs))} companies.
+      Sourced from {len(set(j['source'] for j in all_jobs))} sources
+      across {len(set(j['company_name'] for j in all_jobs))} companies.
       <br>Your watchlist has {get_watchlist_count()} active companies.
     </div>
 
@@ -172,49 +231,45 @@ def get_watchlist_count() -> int:
 
 
 def send_digest(dry_run: bool = False) -> dict:
-    """
-    Send the email digest.
-    dry_run=True prints the email without sending.
-    """
-    conn    = get_conn()
-    profile = get_profile()
-    jobs    = get_notifiable_jobs(conn)
+    conn        = get_conn()
+    profile     = get_profile()
+    dream_jobs  = get_dream_jobs(conn)
+    bridge_jobs = get_bridge_jobs(conn)
     conn.close()
 
-    if not jobs:
-        log.info("No notifiable jobs — skipping digest")
+    if not dream_jobs and not bridge_jobs:
+        log.info("No jobs to send — skipping digest")
         return {"sent": False, "reason": "no_jobs", "count": 0}
 
-    html = build_html_email(jobs, profile)
+    html  = build_html_email(dream_jobs, bridge_jobs, profile)
+    total = len(dream_jobs) + len(bridge_jobs)
 
     if dry_run:
-        print(f"\n{'='*60}")
-        print(f"DRY RUN — would send {len(jobs)} roles to {NOTIFY_EMAIL}")
-        print(f"{'='*60}")
-        for j in jobs:
-            print(f"  [{j['score']}] {j['title']} @ {j['company_name']} ({j['location'] or 'no location'})")
-        print(f"\nHTML length: {len(html)} chars")
-        return {"sent": False, "reason": "dry_run", "count": len(jobs)}
+        print(f"\nDRY RUN — {len(dream_jobs)} dream roles, {len(bridge_jobs)} bridge opportunities")
+        print("\nDREAM ROLES:")
+        for j in dream_jobs:
+            print(f"  [{j['score']}] {j['title']} @ {j['company_name']}")
+        print("\nBRIDGE INCOME:")
+        for j in bridge_jobs:
+            print(f"  {j['title']} via {j['source']}")
+        return {"sent": False, "reason": "dry_run", "count": total}
 
-    # Validate credentials
     if not all([GMAIL_ADDRESS, GMAIL_APP_PASSWORD, NOTIFY_EMAIL]):
         log.error("Gmail credentials not set in .env")
         return {"sent": False, "reason": "no_credentials", "count": 0}
 
-    # Build email
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Job Agent — {len(jobs)} role{'s' if len(jobs) != 1 else ''} · {datetime.now().strftime('%d %b')}"
+    msg["Subject"] = f"Job Agent — {len(dream_jobs)} roles · {len(bridge_jobs)} bridge · {datetime.now().strftime('%d %b')}"
     msg["From"]    = GMAIL_ADDRESS
     msg["To"]      = NOTIFY_EMAIL
     msg.attach(MIMEText(html, "html"))
 
-    # Send
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
             server.sendmail(GMAIL_ADDRESS, NOTIFY_EMAIL, msg.as_string())
-        log.info(f"Digest sent — {len(jobs)} roles to {NOTIFY_EMAIL}")
-        return {"sent": True, "count": len(jobs)}
+        log.info(f"Digest sent — {len(dream_jobs)} dream, {len(bridge_jobs)} bridge")
+        return {"sent": True, "count": total}
     except Exception as e:
         log.error(f"Failed to send: {e}")
         return {"sent": False, "reason": str(e), "count": 0}
