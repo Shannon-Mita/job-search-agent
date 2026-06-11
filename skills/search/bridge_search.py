@@ -103,6 +103,16 @@ def extract_bridge_job(result: dict, source: str) -> Optional[dict]:
     if any(p in title.lower() for p in skip):
         return None
 
+    # Skip LinkedIn collection pages ("329 jobs in X")
+    if re.match(r"^\d[\d,+]*\s+", title):
+        return None
+
+    # Skip person names (First Last - Title pattern)
+    if re.match(r"^[A-Z][a-z]+ [A-Z][a-z\.]+\s*$", title):
+        return None
+    if re.match(r"^[A-Z][a-z]+ [A-Z][a-z]+ [-–]", title):
+        return None
+
     # Extract company/client
     company = ""
     m = re.search(r"\bat ([A-Z][A-Za-z0-9\s&\-]+?)[\.,\|;]", snippet)
