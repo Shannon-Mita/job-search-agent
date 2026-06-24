@@ -231,25 +231,32 @@ def get_watchlist_count() -> int:
 
 
 def send_digest(dry_run: bool = False) -> dict:
-    conn        = get_conn()
-    profile     = get_profile()
-    dream_jobs  = get_dream_jobs(conn)
-    bridge_jobs = get_bridge_jobs(conn)
+    conn    = get_conn()
+    profile = get_profile()
+
+    # Import seen jobs memory
+    seen_jobs_path = str(ROOT / "skills" / "deduplicate")
+    if seen_jobs_path not in sys.path:
+        sys.path.insert(0, seen_jobs_path)
+    from seen_jobs import get_unseen_notifiable_jobs, get_unseen_bridge_jobs, mark_digest_sent
+
+    dream_jobs  = get_unseen_notifiable_jobs(conn)
+    bridge_jobs = get_unseen_bridge_jobs(conn)
     conn.close()
 
     if not dream_jobs and not bridge_jobs:
-        log.info("No jobs to send — skipping digest")
-        return {"sent": False, "reason": "no_jobs", "count": 0}
+        log.info("No new jobs since last digest — skipping")
+        return {"sent": False, "reason": "no_new_jobs", "count": 0}
 
     html  = build_html_email(dream_jobs, bridge_jobs, profile)
     total = len(dream_jobs) + len(bridge_jobs)
 
     if dry_run:
-        print(f"\nDRY RUN — {len(dream_jobs)} dream roles, {len(bridge_jobs)} bridge opportunities")
-        print("\nDREAM ROLES:")
+        print(f"\nDRY RUN — {len(dream_jobs)} new dream roles, {len(bridge_jobs)} new bridge")
+        print("\nDREAM ROLES (new only):")
         for j in dream_jobs:
-            print(f"  [{j['score']}] {j['title']} @ {j['company_name']}")
-        print("\nBRIDGE INCOME:")
+            print(f"  [{j['score']}] {j['title']} @ {j['company_name']} ({j['location'] or 'no location'})")
+        print("\nBRIDGE INCOME (new only):")
         for j in bridge_jobs:
             print(f"  {j['title']} via {j['source']}")
         return {"sent": False, "reason": "dry_run", "count": total}
@@ -259,7 +266,7 @@ def send_digest(dry_run: bool = False) -> dict:
         return {"sent": False, "reason": "no_credentials", "count": 0}
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Job Agent — {len(dream_jobs)} roles · {len(bridge_jobs)} bridge · {datetime.now().strftime('%d %b')}"
+    msg["Subject"] = f"Job Agent — {len(dream_jobs)} new roles · {len(bridge_jobs)} bridge · {datetime.now().strftime('%d %b')}"
     msg["From"]    = GMAIL_ADDRESS
     msg["To"]      = NOTIFY_EMAIL
     msg.attach(MIMEText(html, "html"))
@@ -268,6 +275,9 @@ def send_digest(dry_run: bool = False) -> dict:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
             server.sendmail(GMAIL_ADDRESS, NOTIFY_EMAIL, msg.as_string())
+
+        # Only mark as seen after successful send
+        mark_digest_sent(dream_jobs, bridge_jobs)
         log.info(f"Digest sent — {len(dream_jobs)} dream, {len(bridge_jobs)} bridge")
         return {"sent": True, "count": total}
     except Exception as e:
