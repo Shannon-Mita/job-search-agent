@@ -99,6 +99,67 @@ NON_JOB_PHRASES = {
     "remote by design", "cookie policy", "privacy policy",
 }
 
+LOCATION_TERMS = [
+    # UK cities
+    "London", "Manchester", "Bristol", "Edinburgh", "Birmingham",
+    "Leeds", "Oxford", "Cambridge", "Glasgow", "Liverpool",
+    "Brighton", "Bath", "Reading", "Sheffield", "Nottingham",
+    "Newcastle", "Cardiff", "Belfast", "Exeter", "Norwich",
+    # UK general
+    "United Kingdom", "UK", "England", "Scotland", "Wales",
+    # Work type
+    "Remote", "Hybrid",
+    # Australia
+    "Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide",
+    "Australia",
+]
+
+
+def _clean_title_extract_location(raw: str) -> tuple[str, str]:
+    """
+    Strip location/UI artifacts from scraped title text and extract location.
+    Returns (cleaned_title, location_or_empty).
+    Only extracts locations present in LOCATION_TERMS (UK/Remote/AU).
+    Non-matching cities remain in the title but location is left empty.
+    """
+    title = raw.strip()
+    location = ""
+
+    # Extract "Location: X" pattern and remove it from title
+    loc_match = re.search(r'\bLocation:\s*([^\n]+)', title, re.I)
+    if loc_match:
+        candidate = loc_match.group(1).strip()
+        for term in LOCATION_TERMS:
+            if term.lower() in candidate.lower():
+                location = term
+                break
+        title = (title[:loc_match.start()] + title[loc_match.end():]).strip()
+
+    # Split on camelCase / uppercase-run boundaries (e.g. "ManagerLondon")
+    title = re.sub(r'([a-z])([A-Z][a-z])', r'\1 | \2', title)
+    title = re.sub(r'([A-Z]{2,})([A-Z][a-z])', r'\1 | \2', title)
+    if " | " in title:
+        title = title.split(" | ")[0].strip()
+
+    # Strip trailing UI artifacts
+    for suffix in [
+        " Full Time", " Part Time", " Contract", " Permanent", " Temporary",
+        "Full Time", "Part Time", " View Job", "View Job",
+        " Apply Now", "Apply Now", " Learn More", "Learn More",
+    ]:
+        if title.endswith(suffix):
+            title = title[:-len(suffix)].strip()
+
+    # Extract a known location term from the end of the cleaned title
+    if not location:
+        for term in sorted(LOCATION_TERMS, key=len, reverse=True):
+            if title.lower().endswith(term.lower()):
+                location = term
+                title = title[:-len(term)].strip().rstrip(",– -").strip()
+                break
+
+    return title, location
+
 
 def is_valid_job_title(title: str) -> bool:
     """
@@ -493,7 +554,10 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
                 if not is_valid_job_title(title):
                     continue
                 loc_el = card.find(class_=re.compile(r"location|city|region", re.I))
-                location = loc_el.get_text(strip=True) if loc_el else ""
+                if loc_el:
+                    location = loc_el.get_text(strip=True)
+                else:
+                    _, location = _clean_title_extract_location(title_el.get_text(strip=True))
                 link = card.find("a", href=True)
                 url = career_url
                 if link:
@@ -542,6 +606,10 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
         if not is_valid_job_title(text):
             continue
 
+        title, location = _clean_title_extract_location(text)
+        if len(title) < 5:
+            continue
+
         seen_hrefs.add(href)
         if href.startswith("http"):
             url = href
@@ -551,8 +619,8 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
         else:
             url = career_url
         jobs.append({
-            "title": text,
-            "location": "",
+            "title": title,
+            "location": location,
             "salary_raw": "",
             "url": url,
             "description": "",
