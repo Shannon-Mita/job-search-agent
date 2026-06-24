@@ -153,7 +153,7 @@ def score_location(location: str, profile: dict) -> tuple[int, str]:
     Anything else scores 0 and should not be notified.
     """
     if not location or location.strip() == "":
-        return 3, "no_location_info"  # reduced benefit of doubt
+        return 0, "no_location_info"
 
     loc_lower = location.lower().strip()
 
