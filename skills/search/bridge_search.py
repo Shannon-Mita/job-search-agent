@@ -1,15 +1,14 @@
 """
 skills/search/bridge_search.py
 
-Searches for short-term, freelance, fractional and contract opportunities
-aligned with Shannon's skills profile.
+Searches for short-term, freelance, fractional and contract opportunities.
+Focuses on platforms with actual structured job listings, not content pages.
 
 Sources:
-  - Google/Serper searches for freelance/contract roles
-  - LinkedIn Services Marketplace (via Serper)
-  - PeoplePerHour (direct scrape)
-  - Upwork (via Serper — direct scraping blocked)
-  - Contra, Bark (via Serper)
+  - Reed API (free) — contract/interim filter, UK focused
+  - Otta (via Serper) — startup contract roles
+  - LinkedIn (via Serper) — targeted fractional/interim searches
+  - Guardian Jobs (via Serper) — interim/contract filter
 
 Run standalone:
     python skills/search/bridge_search.py
@@ -43,15 +42,63 @@ logging.basicConfig(
 )
 log = logging.getLogger("search.bridge")
 
-SERPER_API_KEY  = os.getenv("SERPER_API_KEY")
-SERPER_URL      = "https://google.serper.dev/search"
-DELAY_BETWEEN   = 2
+SERPER_API_KEY = os.getenv("SERPER_API_KEY")
+REED_API_KEY   = os.getenv("REED_API_KEY")
+SERPER_URL     = "https://google.serper.dev/search"
+DELAY_BETWEEN  = 2
 MAX_DESCRIPTION = 3000
+
+# Phrases that indicate content pages, not job listings
+NON_JOB_SKIP = [
+    "how to", "guide to", "what is", "top 10", "best ",
+    "why you", "tips for", "advice on", "insight",
+    "newsletter", "podcast", "webinar", "course", "event",
+    "salary guide", "market report", "hiring guide",
+    "oecd", "policy", "guidance on", "support group",
+    "focuses on", "the view from", "should feel",
+]
+
+# Minimum indicators that something is an actual job posting
+JOB_INDICATORS = [
+    "hiring", "vacancy", "role", "position", "opportunity",
+    "contract", "interim", "fractional", "freelance",
+    "looking for", "seeking", "we need", "join us",
+    "£", "per day", "per hour", "day rate",
+]
 
 
 def make_fingerprint(title: str, source: str, url: str) -> str:
     raw = f"{title.lower().strip()}|{source}|{url}"
     return hashlib.sha1(raw.encode()).hexdigest()
+
+
+def is_real_job(title: str, snippet: str) -> bool:
+    """Check if a search result is an actual job posting."""
+    combined = f"{title} {snippet}".lower()
+
+    # Reject content pages
+    if any(phrase in combined for phrase in NON_JOB_SKIP):
+        return False
+
+    # Reject person names (First Last pattern with no job words)
+    words = title.split()
+    job_words = ["manager", "director", "head", "lead", "consultant",
+                 "specialist", "associate", "officer", "analyst", "advisor",
+                 "interim", "fractional", "contract", "freelance", "hiring"]
+    if (2 <= len(words) <= 3
+            and all(w[0].isupper() for w in words if len(w) > 1)
+            and not any(w in title.lower() for w in job_words)):
+        return False
+
+    # Reject questions
+    if title.strip().endswith("?"):
+        return False
+
+    # Must have at least one job indicator
+    if not any(ind in combined for ind in JOB_INDICATORS):
+        return False
+
+    return True
 
 
 def serper_search(query: str, num: int = 10) -> list:
@@ -78,7 +125,7 @@ def serper_search(query: str, num: int = 10) -> list:
 
 
 def extract_bridge_job(result: dict, source: str) -> Optional[dict]:
-    """Extract a bridge/freelance opportunity from a search result."""
+    """Extract a bridge job from a search result with strict validation."""
     title   = result.get("title", "")
     url     = result.get("link", "")
     snippet = result.get("snippet", "")
@@ -94,191 +141,151 @@ def extract_bridge_job(result: dict, source: str) -> Optional[dict]:
     if len(title) < 5 or len(title) > 120:
         return None
 
-    # Skip irrelevant pages
-    skip = [
-        "how to find", "guide to", "what is", "top 10", "101",
-        "best freelance", "sign up", "login", "register",
-        "post a job", "hire a", "find a freelancer",
-        "why are", "overlooked", "article", "blog",
-        "newsletter", "podcast", "webinar", "course",
-        "salary guide", "salary report", "market report",
+    # Strict job validation
+    if not is_real_job(title, snippet):
+        return None
+
+    # Extract location — UK only
+    location = ""
+    uk_locations = [
+        "London", "Manchester", "Bristol", "Edinburgh", "Birmingham",
+        "Leeds", "Remote", "Hybrid", "UK", "United Kingdom",
     ]
-    if any(p in title.lower() for p in skip):
-        return None
+    for loc in uk_locations:
+        if loc.lower() in snippet.lower():
+            location = loc
+            break
+    if not location:
+        location = "Remote"  # reasonable default for freelance
 
-    # Skip if title looks like a person's name
-    # Pattern: First [Middle] Last — 2-3 capitalised words, no job indicators
-    job_indicators = [
-        "manager", "director", "head", "lead", "consultant", "specialist",
-        "associate", "officer", "analyst", "advisor", "executive", "partner",
-        "engineer", "designer", "developer", "coordinator", "assistant",
-        "interim", "fractional", "contract", "freelance", "remote",
-        "operations", "business", "people", "talent", "commercial",
-    ]
-    words = title.split()
-    title_lower_words = title.lower().split()
-    if (2 <= len(words) <= 4
-            and all(w[0].isupper() for w in words if len(w) > 1)
-            and not any(ind in title.lower() for ind in job_indicators)):
-        return None
-
-    # Skip if title is a question
-    if title.endswith("?"):
-        return None
-
-    # Skip if title starts with interrogative
-    interrogatives = ["why", "how", "what", "when", "where", "who", "which"]
-    if title_lower_words and title_lower_words[0] in interrogatives:
-        return None
-
-    # Skip LinkedIn collection pages ("329 jobs in X")
-    if re.match(r"^\d[\d,+]*\s+", title):
-        return None
-
-    # Extract company/client
-    company = ""
-    m = re.search(r"\bat ([A-Z][A-Za-z0-9\s&\-]+?)[\.,\|;]", snippet)
-    if m:
-        company = m.group(1).strip()
-
-    # Extract day rate / salary signals
+    # Extract rate
     salary_raw = ""
     rate_match = re.search(
-        r"£[\d,k\s\-]+(?:per day|/day|pd|per hour|/hour|ph|per annum|pa)?",
+        r"£[\d,]+(?:k)?(?:\s*[-–]\s*£[\d,]+(?:k)?)?(?:\s*(?:per day|/day|pd|per hour|/hour|ph|per annum|pa))?",
         snippet, re.I
     )
     if rate_match:
         salary_raw = rate_match.group(0)
 
-    # Location
-    location = "Remote"  # default for freelance
-    loc_m = re.search(
-        r"\b(London|Manchester|Bristol|Remote|Hybrid|UK|United Kingdom)\b",
-        snippet, re.I
-    )
-    if loc_m:
-        location = loc_m.group(1)
-
     return {
         "title":        title,
-        "company_name": company or "Unknown",
+        "company_name": "Via " + source.replace("serper_", "").replace("_", " ").title(),
         "location":     location,
         "salary_raw":   salary_raw,
         "url":          url,
         "description":  snippet[:MAX_DESCRIPTION],
-        "source":       source,
+        "source":       f"serper_{source}",
         "mode":         "bridge",
     }
 
 
-def build_bridge_queries(profile: dict) -> list:
-    """Build search queries for bridge/freelance opportunities."""
-    bridge  = profile.get("bridge_income", {})
-    skills  = profile.get("skills_keywords", {}).get("core", [])[:6]
+def search_reed_contract() -> list:
+    """
+    Search Reed API for contract/interim roles matching Shannon's skills.
+    Reed is used here specifically for bridge income — structured UK listings
+    with contract filter applied.
+    """
+    if not REED_API_KEY:
+        log.info("No Reed API key — skipping Reed bridge search")
+        return []
 
-    # Core skill terms to search for
-    skill_terms = [
-        "global mobility", "people operations", "business development",
-        "sales enablement", "talent acquisition", "HR operations",
-        "go-to-market", "operational efficiency",
-    ]
-
-    contract_terms = [
-        "fractional", "interim", "contract", "freelance consulting",
-    ]
-
-    queries = []
-
-    # Fractional/interim roles — UK focused
-    for skill in skill_terms[:5]:
-        for contract in contract_terms[:2]:
-            queries.append(
-                f'"{contract}" "{skill}" UK site:linkedin.com OR site:peopleperhour.com OR site:contra.com'
-            )
-
-    # PeoplePerHour specific
-    for skill in skill_terms[:4]:
-        queries.append(f'site:peopleperhour.com "{skill}"')
-
-    # Upwork via Google
-    for skill in skill_terms[:3]:
-        queries.append(f'site:upwork.com "{skill}" "global" OR "UK"')
-
-    # General freelance market
-    queries.extend([
-        '"fractional Head of People" OR "fractional HR" UK 2025 2026',
-        '"interim Head of Talent" OR "interim People Director" UK',
-        '"fractional BD" OR "fractional business development" climate sustainability UK',
-        '"contract people operations" OR "contract HR" climate sustainability UK',
-        '"fractional COO" OR "fractional Chief of Staff" climate UK startup',
-        '"global mobility consultant" OR "global mobility contractor" UK',
-        '"sales enablement consultant" OR "sales enablement contractor" UK',
-    ])
-
-    return queries
-
-
-def scrape_peopleperhour(profile: dict) -> list:
-    """Direct scrape of PeoplePerHour for relevant project listings."""
     jobs = []
-    skills = [
-        "people-operations", "business-development",
-        "hr-consulting", "talent-acquisition", "sales-enablement"
+    keywords = [
+        "fractional people operations",
+        "interim head of people",
+        "contract talent acquisition",
+        "fractional HR director",
+        "interim business development",
+        "contract global mobility",
+        "fractional chief of staff",
+        "interim sales enablement",
     ]
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
-
-    for skill in skills[:3]:
-        url  = f"https://www.peopleperhour.com/freelance-{skill}-jobs"
+    for keyword in keywords:
         try:
-            resp = requests.get(url, headers=headers, timeout=15)
+            resp = requests.get(
+                "https://www.reed.co.uk/api/1.0/search",
+                auth=(REED_API_KEY, ""),
+                params={
+                    "keywords":       keyword,
+                    "locationName":   "United Kingdom",
+                    "contractType":   "contract",
+                    "resultsToTake":  10,
+                },
+                timeout=15,
+            )
             if resp.status_code != 200:
                 continue
-            soup = BeautifulSoup(resp.text, "lxml")
-            cards = soup.select("[class*='listing'], [class*='job-item'], article")
-            for card in cards[:10]:
-                title_el = card.find(["h2", "h3", "h4", "a"])
-                if not title_el:
-                    continue
-                title = title_el.get_text(strip=True)
-                if len(title) < 5 or len(title) > 120:
-                    continue
-                link = card.find("a", href=True)
-                job_url = link["href"] if link else url
-                if not job_url.startswith("http"):
-                    job_url = f"https://www.peopleperhour.com{job_url}"
+
+            for job in resp.json().get("results", []):
                 jobs.append({
-                    "title":        title,
-                    "company_name": "PeoplePerHour client",
-                    "location":     "Remote",
-                    "salary_raw":   "",
-                    "url":          job_url,
-                    "description":  card.get_text(separator=" ", strip=True)[:MAX_DESCRIPTION],
-                    "source":       "peopleperhour",
+                    "title":        job.get("jobTitle", ""),
+                    "company_name": job.get("employerName", "Unknown"),
+                    "location":     job.get("locationName", "UK"),
+                    "salary_raw":   f"£{job.get('minimumSalary', '')} - £{job.get('maximumSalary', '')}".strip("- £"),
+                    "url":          job.get("jobUrl", ""),
+                    "description":  job.get("jobDescription", "")[:MAX_DESCRIPTION],
+                    "source":       "reed_contract",
                     "mode":         "bridge",
                 })
+            time.sleep(DELAY_BETWEEN)
         except Exception as e:
-            log.warning(f"PeoplePerHour error for {skill}: {e}")
+            log.warning(f"Reed error for '{keyword}': {e}")
+
+    log.info(f"Reed contract: {len(jobs)} roles found")
+    return jobs
+
+
+def search_serper_bridge() -> list:
+    """Targeted Serper searches for actual freelance/contract postings."""
+    jobs = []
+
+    # Very specific queries that return actual job postings
+    queries = [
+        # LinkedIn job postings — contract filter
+        'site:linkedin.com/jobs "interim" OR "fractional" ("people operations" OR "HR" OR "talent") UK',
+        'site:linkedin.com/jobs "contract" ("business development" OR "sales enablement") ("climate" OR "sustainability") UK',
+        'site:linkedin.com/jobs "fractional" ("Chief of Staff" OR "Head of People" OR "COO") UK',
+        # Specific fractional platforms
+        'site:fractional.work ("people" OR "HR" OR "talent" OR "business development") UK',
+        'site:calmerry.com OR site:worksome.co.uk "fractional" OR "interim" "people" UK',
+        # Guardian Jobs contract
+        'site:jobs.theguardian.com "interim" OR "contract" ("sustainability" OR "climate" OR "people operations")',
+        # Exec contract boards
+        '"interim director" OR "fractional director" ("people" OR "talent" OR "HR" OR "BD") UK 2025 2026',
+        '"fractional Head of People" UK ("climate" OR "sustainability" OR "startup" OR "scaleup")',
+        '"interim Chief of Staff" UK startup scaleup 2025 2026',
+        '"contract global mobility" OR "interim global mobility" UK',
+    ]
+
+    for query in queries:
+        log.info(f"  Bridge query: {query[:70]}...")
+        results = serper_search(query, num=10)
+
+        for result in results:
+            job = extract_bridge_job(result, "bridge")
+            if job:
+                jobs.append(job)
+
         time.sleep(DELAY_BETWEEN)
 
+    log.info(f"Serper bridge: {len(jobs)} valid postings found")
     return jobs
 
 
 def save_bridge_jobs(conn, jobs: list) -> tuple:
-    """Save bridge jobs to database with mode='bridge'."""
+    """Save bridge jobs with deduplication."""
     cursor    = conn.cursor()
     new_count = 0
 
     for job in jobs:
+        if not job.get("title") or not job.get("url"):
+            continue
+
         fingerprint = make_fingerprint(
             job["title"], job["source"], job["url"]
         )
+
         existing = cursor.execute(
             "SELECT id FROM jobs WHERE fingerprint = ?", (fingerprint,)
         ).fetchone()
@@ -290,32 +297,23 @@ def save_bridge_jobs(conn, jobs: list) -> tuple:
             )
             continue
 
-        # Parse salary
-        salary_raw = job.get("salary_raw", "")
-        salary_min = None
-        salary_max = None
-        if salary_raw:
-            nums = re.findall(r"[\d,]+", salary_raw.replace("k", "000"))
-            vals = [int(n.replace(",", "")) for n in nums if n.replace(",", "").isdigit()]
-            vals = [v for v in vals if 100 <= v <= 2000]  # day rate range
-            if len(vals) >= 2:
-                salary_min, salary_max = min(vals), max(vals)
-            elif len(vals) == 1:
-                salary_min = salary_max = vals[0]
-
         cursor.execute(
             """
             INSERT INTO jobs (
                 fingerprint, title, company_name,
-                location, salary_raw, salary_min, salary_max,
+                location, salary_raw,
                 url, description, source, mode
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bridge')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'bridge')
             """,
             (
-                fingerprint, job["title"], job["company_name"],
-                job.get("location", ""), salary_raw,
-                salary_min, salary_max,
-                job["url"], job.get("description", ""), job["source"],
+                fingerprint,
+                job["title"],
+                job.get("company_name", "Unknown"),
+                job.get("location", ""),
+                job.get("salary_raw", ""),
+                job["url"],
+                job.get("description", ""),
+                job["source"],
             ),
         )
         new_count += 1
@@ -326,42 +324,26 @@ def save_bridge_jobs(conn, jobs: list) -> tuple:
 
 def run_bridge_search(dry_run: bool = False) -> dict:
     """Run all bridge income searches."""
-    if not SERPER_API_KEY:
-        log.error("SERPER_API_KEY not set — add to .env")
-        return {"error": "no_api_key"}
-
     conn    = get_conn()
     profile = get_profile()
-    queries = build_bridge_queries(profile)
 
-    all_jobs      = []
-    searches_used = 0
+    log.info("Starting bridge income search")
+    all_jobs = []
 
-    log.info(f"Running {len(queries)} bridge income searches")
+    # Reed contract search (structured, reliable)
+    reed_jobs = search_reed_contract()
+    all_jobs.extend(reed_jobs)
 
-    # Serper searches
-    for query in queries:
-        log.info(f"  Query: {query[:80]}...")
-        results = serper_search(query, num=10)
-        searches_used += 1
+    # Serper targeted searches
+    serper_jobs = search_serper_bridge()
+    all_jobs.extend(serper_jobs)
 
-        for result in results:
-            job = extract_bridge_job(result, "serper_bridge")
-            if job:
-                all_jobs.append(job)
-
-        time.sleep(DELAY_BETWEEN)
-
-    # PeoplePerHour direct scrape
-    log.info("Scraping PeoplePerHour directly...")
-    pph_jobs = scrape_peopleperhour(profile)
-    all_jobs.extend(pph_jobs)
-    log.info(f"  PeoplePerHour: {len(pph_jobs)} listings")
+    log.info(f"Total bridge opportunities found: {len(all_jobs)}")
 
     if dry_run:
-        print(f"\nDRY RUN — {len(all_jobs)} bridge opportunities found")
-        for j in all_jobs[:20]:
-            print(f"  {j['title']} via {j['source']} ({j['location']})")
+        print(f"\nDRY RUN — {len(all_jobs)} bridge opportunities")
+        for j in all_jobs:
+            print(f"  [{j['source']}] {j['title']} ({j['location']})")
         conn.close()
         return {"dry_run": True, "found": len(all_jobs)}
 
@@ -369,12 +351,10 @@ def run_bridge_search(dry_run: bool = False) -> dict:
     conn.close()
 
     summary = {
-        "searches_used": searches_used,
-        "jobs_found":    total,
-        "jobs_new":      new_count,
-        "timestamp":     datetime.now().isoformat(),
+        "jobs_found": total,
+        "jobs_new":   new_count,
+        "timestamp":  datetime.now().isoformat(),
     }
-
     log.info(f"Bridge search complete — {total} found, {new_count} new")
     return summary
 
