@@ -148,56 +148,42 @@ def score_sector(sector: str, profile: dict) -> tuple[int, str]:
 
 def score_location(location: str, profile: dict) -> tuple[int, str]:
     """
-    10 points max.
-    Hybrid UK / UK-based = 10
-    Remote               = 9
-    Australia            = 8
-    Other onsite UK      = 6
-    No location info     = 5 (benefit of doubt)
-    Requires relocation  = 0
+    10 points max for simple scoring.
+    Strict — roles must be UK, Remote, or Australia to score positively.
+    Anything else scores 0 and should not be notified.
     """
-    if not location:
-        return 5, "no_location_info"
+    if not location or location.strip() == "":
+        return 3, "no_location_info"  # reduced benefit of doubt
 
-    loc_lower = location.lower()
+    loc_lower = location.lower().strip()
 
-    # Remote
-    if any(w in loc_lower for w in ["remote", "anywhere", "distributed", "worldwide"]):
-        if any(w in loc_lower for w in ["uk", "united kingdom", "britain", "london", "england"]):
+    # Remote — always acceptable
+    if any(w in loc_lower for w in ["remote", "anywhere", "distributed", "worldwide", "global"]):
+        if any(w in loc_lower for w in ["uk", "united kingdom", "britain", "england", "london"]):
             return 10, "remote_uk"
         return 9, "remote_global"
 
-    # UK locations
-    uk_cities = ["london", "manchester", "bristol", "edinburgh", "birmingham",
-                 "leeds", "oxford", "cambridge", "uk", "united kingdom", "england",
-                 "scotland", "wales", "britain", "hybrid"]
-    if any(city in loc_lower for city in uk_cities):
+    # UK locations — acceptable
+    uk_terms = [
+        "london", "manchester", "bristol", "edinburgh", "birmingham",
+        "leeds", "oxford", "cambridge", "glasgow", "liverpool",
+        "uk", "united kingdom", "england", "scotland", "wales",
+        "britain", "hybrid", "sheffield", "nottingham", "reading",
+        "brighton", "bath", "coventry", "leicester",
+    ]
+    if any(term in loc_lower for term in uk_terms):
         if "hybrid" in loc_lower:
             return 10, "hybrid_uk"
         return 8, "onsite_uk"
 
-    # Australia
-    if any(w in loc_lower for w in ["australia", "sydney", "melbourne", "brisbane", "perth"]):
-        return 8, "australia"
+    # Australia — acceptable, Shannon open to relocation
+    au_terms = ["australia", "sydney", "melbourne", "brisbane", "perth", "adelaide"]
+    if any(term in loc_lower for term in au_terms):
+        return 7, "australia"
 
-    # EU / Europe — acceptable but not ideal
-    if any(w in loc_lower for w in ["europe", "european", "amsterdam", "berlin",
-                                     "paris", "dublin", "amsterdam"]):
-        return 5, "europe"
-
-    # US — remote roles acceptable, onsite not
-    if any(w in loc_lower for w in ["united states", "usa", "new york", "san francisco",
-                                     "los angeles", "boston", "chicago"]):
-        return 3, "us_onsite"
-
-    # Explicitly non-relevant locations — don't surface these
-    non_relevant = ["ghana", "indonesia", "nigeria", "kenya", "uganda",
-                    "tanzania", "ethiopia", "bangladesh", "vietnam",
-                    "cambodia", "myanmar"]
-    if any(w in loc_lower for w in non_relevant):
-        return 0, f"non_relevant_location:{location[:30]}"
-
-    return 4, f"other:{location[:30]}"
+    # Everything else — not relevant, score 0
+    # This includes US, Europe, Asia, Africa, etc.
+    return 0, f"non_relevant:{location[:40]}"
 
 
 # ── Excluded role detection ───────────────────────────────────────────────────
@@ -558,10 +544,13 @@ def run_simple_scoring(rescore_all: bool = False) -> dict:
         score += sec_score
         breakdown["sector"] = {"score": sec_score, "detail": sec_detail}
 
-        # Notify threshold: watchlist company AND relevant title
-        # Both must be true — eliminates farmworkers at good companies
-        # and random BD roles at unknown companies
-        notify = 1 if (company_score >= 12 and title_score >= 20) else 0
+        # Require: watchlist company + relevant title + acceptable location
+        # Location score of 0 means non-relevant geography — never notify
+        notify = 1 if (
+            company_score >= 12
+            and title_score >= 20
+            and loc_score > 0
+        ) else 0
 
         conn.execute(
             """
