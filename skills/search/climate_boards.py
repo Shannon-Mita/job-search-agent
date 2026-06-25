@@ -253,15 +253,108 @@ def scrape_greenjobs_uk() -> list:
     return [j for j in jobs if j["title"] not in ("Job Title", "")]
 
 
+def scrape_realworkfromanywhere() -> list:
+    """
+    Real Work From Anywhere — fully remote global roles.
+    Static HTML, no JS rendering needed.
+    Scrapes Management/Finance and Sales/Marketing categories.
+    """
+    jobs = []
+    urls = [
+        ("https://www.realworkfromanywhere.com/remote-management-and-finance-jobs", "management"),
+        ("https://www.realworkfromanywhere.com/remote-sales-and-marketing-jobs", "sales"),
+        ("https://www.realworkfromanywhere.com/remote-product-jobs", "product"),
+    ]
+
+    for url, category in urls:
+        soup = fetch(url)
+        if not soup:
+            continue
+
+        # Job cards are anchor tags linking to /jobs/ paths
+        seen = set()
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if "/jobs/" not in href:
+                continue
+            if not href.startswith("http"):
+                href = f"https://www.realworkfromanywhere.com{href}"
+            if href in seen:
+                continue
+            seen.add(href)
+
+            text = a.get_text(separator=" ", strip=True)
+            if len(text) < 10:
+                continue
+
+            # Parse the card text — format is:
+            # "Company Logo [date] Title Company [date] Location [salary] [tags]"
+            # Extract title and company from structured text
+            lines = [l.strip() for l in text.split("\n") if l.strip()]
+
+            title   = ""
+            company = ""
+            salary  = ""
+
+            # Find salary pattern
+            salary_match = re.search(r'\$[\d,]+\s*-\s*\$[\d,]+\s*USD', text)
+            if not salary_match:
+                salary_match = re.search(r'£[\d,]+\s*-\s*£[\d,]+', text)
+            if salary_match:
+                salary = salary_match.group(0)
+
+            # Title is usually the longest meaningful segment
+            # Company appears after title
+            segments = re.split(r'\d+\s+(?:day|days|month|months)\s+ago|New', text)
+            segments = [s.strip() for s in segments if len(s.strip()) > 5]
+
+            if len(segments) >= 2:
+                # First segment after date split is usually title + company
+                first = segments[0] if segments else text
+                # Try to split title from company
+                words = first.split()
+                if len(words) > 3:
+                    # Heuristic: company name is usually at the end
+                    # Title is the first meaningful phrase
+                    title   = " ".join(words[:6]).strip()
+                    company = " ".join(words[6:]).strip() if len(words) > 6 else "Unknown"
+                else:
+                    title = first
+
+            if not title or len(title) < 5:
+                continue
+
+            # Clean title
+            title = re.sub(r'\s+', ' ', title).strip()
+            if len(title) > 100:
+                title = title[:100].strip()
+
+            jobs.append({
+                "title":        title,
+                "company_name": company or "Unknown",
+                "location":     "Remote",
+                "salary_raw":   salary,
+                "url":          href,
+                "description":  text[:MAX_DESCRIPTION],
+                "source":       "realworkfromanywhere",
+            })
+
+        log.info(f"  realworkfromanywhere [{category}]: {len(seen)} listings")
+        time.sleep(DELAY_BETWEEN)
+
+    return jobs
+
+
 BOARDS = [
-    {"name": "Climatebase",        "fn": scrape_climatebase,        "tier": 1},
-    {"name": "inClimate",          "fn": scrape_inclimate,          "tier": 1},
-    {"name": "Terra.do",           "fn": scrape_terra_do,           "tier": 1},
-    {"name": "Work on Climate",    "fn": scrape_work_on_climate,    "tier": 1},
-    {"name": "Green Jobs Network", "fn": scrape_green_jobs_network, "tier": 1},
-    {"name": "Escape the City",    "fn": scrape_escape_the_city,    "tier": 2},
-    {"name": "Enable Green",       "fn": scrape_enable_green,       "tier": 2},
-    {"name": "GreenJobs UK",       "fn": scrape_greenjobs_uk,       "tier": 2},
+    {"name": "Climatebase",            "fn": scrape_climatebase,            "tier": 1},
+    {"name": "inClimate",              "fn": scrape_inclimate,              "tier": 1},
+    {"name": "Terra.do",               "fn": scrape_terra_do,               "tier": 1},
+    {"name": "Work on Climate",        "fn": scrape_work_on_climate,        "tier": 1},
+    {"name": "Green Jobs Network",     "fn": scrape_green_jobs_network,     "tier": 1},
+    {"name": "Escape the City",        "fn": scrape_escape_the_city,        "tier": 2},
+    {"name": "Enable Green",           "fn": scrape_enable_green,           "tier": 2},
+    {"name": "GreenJobs UK",           "fn": scrape_greenjobs_uk,           "tier": 2},
+    {"name": "Real Work From Anywhere","fn": scrape_realworkfromanywhere,   "tier": 2},
 ]
 
 
