@@ -1,0 +1,52 @@
+name: Weekly Company Discovery
+
+on:
+  schedule:
+    - cron: '0 8 * * 0'  # Sundays 8am UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  discover-companies:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 lxml python-dotenv
+
+      - name: Create .env from secrets
+        run: |
+          echo "GMAIL_ADDRESS=${{ secrets.GMAIL_ADDRESS }}" >> .env
+          echo "GMAIL_APP_PASSWORD=${{ secrets.GMAIL_APP_PASSWORD }}" >> .env
+          echo "NOTIFY_EMAIL=${{ secrets.NOTIFY_EMAIL }}" >> .env
+          echo "SERPER_API_KEY=${{ secrets.SERPER_API_KEY }}" >> .env
+
+      - name: Initialise database
+        run: python skills/profile/init_db.py
+
+      - name: Discover new companies
+        run: python skills/signals/company_discovery.py
+
+      - name: Send company digest email
+        run: python skills/notify/company_digest.py
+
+      - name: Commit updated signals
+        run: |
+          git config user.name "Job Agent"
+          git config user.email "action@github.com"
+          git add data/seen_jobs.json
+          git diff --staged --quiet || git commit -m "Update signals after company discovery [skip ci]"
+          git push
