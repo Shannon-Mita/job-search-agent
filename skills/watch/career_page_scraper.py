@@ -115,7 +115,7 @@ LOCATION_TERMS = [
 ]
 
 
-def _clean_title_extract_location(raw: str) -> tuple[str, str]:
+def clean_title_extract_location(raw: str) -> tuple[str, str]:
     """
     Strip location/UI artifacts from scraped title text and extract location.
     Returns (cleaned_title, location_or_empty).
@@ -557,7 +557,7 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
                 if loc_el:
                     location = loc_el.get_text(strip=True)
                 else:
-                    _, location = _clean_title_extract_location(title_el.get_text(strip=True))
+                    _, location = clean_title_extract_location(title_el.get_text(strip=True))
                 link = card.find("a", href=True)
                 url = career_url
                 if link:
@@ -606,7 +606,7 @@ def extract_jobs_from_page(soup: BeautifulSoup, company_name: str, career_url: s
         if not is_valid_job_title(text):
             continue
 
-        title, location = _clean_title_extract_location(text)
+        title, location = clean_title_extract_location(text)
         if len(title) < 5:
             continue
 

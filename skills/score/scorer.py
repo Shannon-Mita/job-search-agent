@@ -544,12 +544,13 @@ def run_simple_scoring(rescore_all: bool = False) -> dict:
         score += sec_score
         breakdown["sector"] = {"score": sec_score, "detail": sec_detail}
 
-        # Require: watchlist company + relevant title + acceptable location
-        # Location score of 0 means non-relevant geography — never notify
+        # Notify logic:
+        # Watchlist company + relevant title = notify (location trusted)
+        # OR strong title match + confirmed location = notify (open market)
         notify = 1 if (
-            company_score >= 12
-            and title_score >= 20
-            and loc_score > 0
+            (company_score >= 12 and title_score >= 20)
+            or
+            (title_score >= 40 and loc_score > 0)
         ) else 0
 
         conn.execute(
