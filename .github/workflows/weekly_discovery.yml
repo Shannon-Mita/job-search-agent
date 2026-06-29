@@ -25,7 +25,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 lxml python-dotenv
+          pip install requests beautifulsoup4 lxml python-dotenv playwright
+          playwright install chromium --with-deps
 
       - name: Create .env from secrets
         run: |
@@ -36,6 +37,9 @@ jobs:
 
       - name: Initialise database
         run: python skills/profile/init_db.py
+
+      - name: Check and fix dead career page URLs
+        run: python skills/watch/url_checker.py --status failed --fix
 
       - name: Discover new companies
         run: python skills/signals/company_discovery.py
