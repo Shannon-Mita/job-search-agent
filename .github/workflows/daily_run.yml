@@ -47,8 +47,8 @@ jobs:
       - name: Search climate boards via Serper
         run: python skills/search/serper_search.py
 
-      - name: Search bridge income opportunities
-        run: python skills/search/bridge_search.py
+      # - name: Search bridge income opportunities
+      #   run: python skills/search/bridge_search.py
 
       - name: Score all jobs
         run: python skills/score/scorer.py --rescore-all
