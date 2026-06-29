@@ -208,10 +208,6 @@ def build_queries(profile: dict) -> dict:
         "climatebase": [
             f'site:climatebase.org "{term}" UK' for term in search_terms[:5]
         ],
-        "linkedin": [
-            f'site:linkedin.com/jobs "{term}" ("climate" OR "sustainability" OR "net zero") UK'
-            for term in titles[:4]
-        ],
         "workonclimate": [
             f'site:workonclimate.org "{term}"' for term in search_terms[:4]
         ],
