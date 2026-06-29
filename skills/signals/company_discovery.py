@@ -58,49 +58,48 @@ HEADERS = {
 # ── Sector search queries ─────────────────────────────────────────────────────
 
 SECTOR_QUERIES = [
-    # Alt materials & packaging
-    ("Alt Materials & Packaging", "alternative materials startup UK Europe 2024 2025 \"Series A\" OR \"Series B\" OR \"seed\""),
-    ("Alt Materials & Packaging", "bioplastics startup UK Europe funding 2024 2025"),
-    ("Alt Materials & Packaging", "sustainable packaging company UK \"B Corp\" OR startup"),
-    ("Alt Materials & Packaging", "biomaterials alternative plastics company Europe hiring 2025"),
+    # Alt Materials & Packaging
+    ("Alt Materials & Packaging", 'inurl:careers "alternative materials" OR "biomaterials" OR "bioplastics" UK Europe'),
+    ("Alt Materials & Packaging", 'inurl:careers "sustainable packaging" OR "compostable packaging" OR "biodegradable packaging"'),
+    ("Alt Materials & Packaging", 'inurl:careers "mycelium" OR "seaweed materials" OR "bio-based materials" UK'),
+    ("Alt Materials & Packaging", 'inurl:careers "textile recycling" OR "fibre recycling" OR "material recovery" UK'),
 
-    # Ocean & blue economy
-    ("Ocean & Blue Economy", "ocean conservation technology startup UK Europe funding 2024 2025"),
-    ("Ocean & Blue Economy", "blue economy startup UK \"Series A\" OR \"Series B\" 2024 2025"),
-    ("Ocean & Blue Economy", "ocean carbon removal company hiring 2025"),
-    ("Ocean & Blue Economy", "marine technology sustainability startup UK Europe"),
+    # Ocean & Blue Economy
+    ("Ocean & Blue Economy", 'inurl:careers "ocean technology" OR "marine technology" OR "blue economy" UK'),
+    ("Ocean & Blue Economy", 'inurl:careers "tidal energy" OR "wave energy" OR "offshore renewable" UK'),
+    ("Ocean & Blue Economy", 'inurl:careers "seaweed" OR "kelp farming" OR "ocean carbon" UK'),
+    ("Ocean & Blue Economy", 'inurl:careers "ocean conservation" OR "marine conservation" OR "ocean plastics" UK'),
 
-    # Food systems & waste
-    ("Food Systems & Waste", "food waste technology startup UK Europe funding 2025"),
-    ("Food Systems & Waste", "alternative protein startup UK \"Series A\" OR \"Series B\" 2025"),
-    ("Food Systems & Waste", "food systems sustainability company UK hiring 2025"),
-    ("Food Systems & Waste", "cultivated meat precision fermentation startup Europe 2025"),
-    ("Food Systems & Waste", "vertical farming agtech startup UK Europe funding 2024 2025"),
+    # Food Systems & Waste
+    ("Food Systems & Waste", 'inurl:careers "food waste" OR "surplus food" OR "food recovery" UK'),
+    ("Food Systems & Waste", 'inurl:careers "alternative protein" OR "cultivated meat" OR "precision fermentation" UK'),
+    ("Food Systems & Waste", 'inurl:careers "vertical farming" OR "indoor farming" OR "controlled environment agriculture" UK'),
+    ("Food Systems & Waste", 'inurl:careers "plant-based food" OR "plant based protein" OR "meat alternative" UK'),
+    ("Food Systems & Waste", 'inurl:careers "regenerative agriculture" OR "soil health" OR "agroforestry" UK Australia'),
+    ("Food Systems & Waste", 'inurl:careers "insect protein" OR "black soldier fly" OR "insect farming" UK Europe'),
 
-    # Circular economy
-    ("Circular Economy", "circular economy startup UK Europe funding 2024 2025"),
-    ("Circular Economy", "sustainable fashion circular startup UK \"Series A\" OR \"Series B\""),
-    ("Circular Economy", "recycling technology innovation startup UK Europe 2025"),
-    ("Circular Economy", "reverse logistics circular economy company UK hiring"),
+    # Circular Economy
+    ("Circular Economy", 'inurl:careers "circular economy" OR "closed loop" OR "zero waste" UK'),
+    ("Circular Economy", 'inurl:careers "reusable packaging" OR "reuse platform" OR "take-back" UK'),
+    ("Circular Economy", 'inurl:careers "textile recycling" OR "circular fashion" OR "clothing resale" UK'),
+    ("Circular Economy", 'inurl:careers "product lifecycle" OR "reverse logistics" OR "recommerce" UK'),
 
-    # Carbon removal & capture
-    ("Carbon Removal & Capture", "carbon removal startup UK Europe funding 2024 2025"),
-    ("Carbon Removal & Capture", "direct air capture company UK Europe hiring 2025"),
-    ("Carbon Removal & Capture", "carbon credits nature based solutions startup UK"),
-    ("Carbon Removal & Capture", "decarbonisation technology startup UK \"Series A\" OR \"Series B\" 2025"),
+    # Carbon Removal & Capture
+    ("Carbon Removal & Capture", 'inurl:careers "carbon removal" OR "direct air capture" OR "carbon sequestration" UK'),
+    ("Carbon Removal & Capture", 'inurl:careers "nature based solutions" OR "reforestation" OR "peatland restoration" UK'),
+    ("Carbon Removal & Capture", 'inurl:careers "enhanced weathering" OR "biochar" OR "soil carbon" UK Australia'),
+    ("Carbon Removal & Capture", 'inurl:careers "carbon credits" OR "voluntary carbon market" OR "carbon registry" UK'),
 
-    # Renewable energy
-    ("Renewable Energy", "renewable energy startup UK funding 2024 2025 \"Series A\" OR \"Series B\""),
-    ("Renewable Energy", "solar energy innovation company UK Europe hiring 2025"),
-    ("Renewable Energy", "energy storage startup UK Europe funding 2025"),
-    ("Renewable Energy", "green hydrogen startup UK Europe 2024 2025"),
+    # Renewable Energy
+    ("Renewable Energy", 'inurl:careers "green hydrogen" OR "electrolysis" OR "hydrogen fuel" UK Australia'),
+    ("Renewable Energy", 'inurl:careers "energy storage" OR "battery storage" OR "grid storage" UK Australia'),
+    ("Renewable Energy", 'inurl:careers "solar energy" OR "wind energy" OR "offshore wind" UK Australia'),
+    ("Renewable Energy", 'inurl:careers "demand flexibility" OR "virtual power plant" OR "smart grid" UK'),
 
-    # Broader climate tech
-    ("Other Impact", "climate tech startup UK \"Series A\" OR \"Series B\" OR \"Series C\" 2025 hiring"),
-    ("Other Impact", "sustainability software company UK Europe funding 2025"),
-    ("Other Impact", "ESG technology startup UK hiring 2025"),
-    ("Other Impact", "net zero technology company UK \"B Corp\" hiring 2025"),
-    ("Other Impact", "cleantech startup UK Europe funding 2024 2025"),
+    # Australia specific
+    ("Food Systems & Waste", 'inurl:careers "agtech" OR "precision agriculture" OR "sustainable farming" Australia'),
+    ("Renewable Energy", 'inurl:careers "renewable energy" OR "clean energy" OR "net zero" Australia'),
+    ("Circular Economy", 'inurl:careers "circular economy" OR "sustainable packaging" OR "waste technology" Australia'),
 ]
 
 # Crunchbase searches by category
@@ -214,6 +213,33 @@ def extract_company_from_result(result: dict, sector: str) -> Optional[dict]:
         "top 10", "best ", "list of", "guide to",
     ]
     if any(p in title.lower() for p in skip_titles):
+        return None
+
+    # Skip if URL is clearly a directory, news, or investor site
+    skip_url_patterns = [
+        "techcrunch", "crunchbase", "dealroom", "sifted", "beauhurst",
+        "startups.co.uk", "uktech.news", "businessgreen", "edie.net",
+        "greenqueen", "greenbiz", "climatetechvc", "ctvc.co",
+        "cleantech", "planettracker", "carbontrust", "/blog/", "/news/",
+        "/article/", "/report/", "/insight/", "/resource/",
+        "investor", "venture", "capital", "fund", "vc.",
+        "accelerator", "incubator", "index.", "list-of",
+        "top-", "best-", "directory",
+        "welpmagazine", "startus-insights", "f6s.com", "wellfound.com",
+        "eu-startups", "sifted.eu", "tech.eu", "maddyness",
+        "listings", "job-board", "jobboard", "work-at", "hiring-now",
+    ]
+    url_lower = url.lower()
+    if any(p in url_lower for p in skip_url_patterns):
+        return None
+
+    # Skip if title looks like a list or article
+    list_patterns = [
+        "funded", "startups 20", "companies to watch", "investment resources",
+        "strategies", "1156+", "top ", "best ", "list of", "guide to",
+        "how to", "what is", "why ", "report:", "roundup",
+    ]
+    if any(p in title.lower() for p in list_patterns):
         return None
 
     # Clean company name from title
