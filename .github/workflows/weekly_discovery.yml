@@ -1,9 +1,7 @@
 name: Weekly Company Discovery
 
 on:
-  schedule:
-    - cron: '0 8 * * 0'  # Sundays 8am UTC
-  workflow_dispatch:
+  workflow_dispatch:  # Manual only — discovery sources unreliable, re-enable when fixed
 
 permissions:
   contents: write
