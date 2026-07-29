@@ -356,6 +356,119 @@ def search_crunchbase_companies() -> list:
     return candidates
 
 
+def scrape_climatetechlist() -> list:
+    """
+    Scrape ClimateTechList — 500+ vetted climate tech companies.
+    Static enough to scrape without Playwright.
+    """
+    candidates = []
+    urls = [
+        "https://www.climatetechlist.com/companies",
+    ]
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        )
+    }
+
+    for url in urls:
+        try:
+            resp = requests.get(url, headers=headers, timeout=20)
+            if resp.status_code != 200:
+                log.warning(f"ClimateTechList {resp.status_code}")
+                continue
+
+            soup = BeautifulSoup(resp.text, "lxml")
+
+            # Find company cards/links
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                text = a.get_text(strip=True)
+
+                # Skip nav, footer, generic links
+                if not text or len(text) < 2 or len(text) > 60:
+                    continue
+                if any(skip in text.lower() for skip in [
+                    "jobs", "careers", "blog", "about", "contact",
+                    "sign in", "log in", "search", "filter"
+                ]):
+                    continue
+
+                # Company profile links
+                if "/companies/" in href or "/company/" in href:
+                    full_url = href if href.startswith("http") else f"https://www.climatetechlist.com{href}"
+                    candidates.append({
+                        "name":    text,
+                        "website": full_url,
+                        "sector":  "Other Impact",
+                        "snippet": f"Listed on ClimateTechList — vetted climate tech company",
+                        "funding": "",
+                        "source":  "climatetechlist",
+                    })
+
+        except Exception as e:
+            log.warning(f"ClimateTechList error: {e}")
+
+    log.info(f"ClimateTechList: {len(candidates)} candidates")
+    return candidates
+
+
+def scrape_workonclimate_companies() -> list:
+    """
+    Scrape Work on Climate company directory.
+    Curated list of climate employers.
+    """
+    candidates = []
+    try:
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            )
+        }
+        resp = requests.get(
+            "https://workonclimate.org/companies/",
+            headers=headers, timeout=20
+        )
+        if resp.status_code != 200:
+            log.warning(f"WorkOnClimate {resp.status_code}")
+            return []
+
+        soup = BeautifulSoup(resp.text, "lxml")
+
+        for card in soup.select("[class*='company'], [class*='employer'], article, li[class]"):
+            name_el = card.find(["h2", "h3", "h4", "strong", "a"])
+            if not name_el:
+                continue
+            name = name_el.get_text(strip=True)
+            if len(name) < 2 or len(name) > 60:
+                continue
+
+            link = card.find("a", href=True)
+            url  = link["href"] if link else "https://workonclimate.org/companies/"
+            if not url.startswith("http"):
+                url = f"https://workonclimate.org{url}"
+
+            candidates.append({
+                "name":    name,
+                "website": url,
+                "sector":  "Other Impact",
+                "snippet": "Listed on Work on Climate — curated climate employer",
+                "funding": "",
+                "source":  "workonclimate",
+            })
+
+    except Exception as e:
+        log.warning(f"WorkOnClimate error: {e}")
+
+    log.info(f"WorkOnClimate companies: {len(candidates)} candidates")
+    return candidates
+
+
 def deduplicate_candidates(candidates: list, existing_names: set, existing_domains: set) -> list:
     """Remove candidates already on the watchlist or duplicates within the batch."""
     seen_names   = set()
@@ -482,8 +595,9 @@ def run_discovery(dry_run: bool = False) -> dict:
 
     # Search all sources
     candidates = []
-    candidates.extend(search_serper_companies())
-    candidates.extend(search_crunchbase_companies())
+    candidates.extend(scrape_climatetechlist())
+    candidates.extend(scrape_workonclimate_companies())
+    candidates.extend(search_crunchbase_companies())  # keep as fallback
 
     log.info(f"Total candidates before dedup: {len(candidates)}")
 

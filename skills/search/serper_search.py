@@ -46,7 +46,8 @@ MAX_DESCRIPTION = 3000
 
 
 def make_fingerprint(company: str, title: str, source: str) -> str:
-    raw = f"{company.lower().strip()}|{title.lower().strip()}|{source}"
+    # Exclude source from fingerprint — same job on multiple sites = same fingerprint
+    raw = f"{company.lower().strip()}|{title.lower().strip()}"
     return hashlib.sha1(raw.encode()).hexdigest()
 
 
@@ -105,6 +106,17 @@ def extract_job_from_result(result: dict, source: str) -> Optional[dict]:
     snippet = result.get("snippet", "")
 
     if not title or not url:
+        return None
+
+    # Block known expired/unreliable URL sources
+    BLOCKED_URL_PATTERNS = [
+        "linkedin.com/jobs",
+        "indeed.com/viewjob",
+        "glassdoor.com/job",
+        "reed.co.uk/jobs",
+        "totaljobs.com/job",
+    ]
+    if any(pattern in url for pattern in BLOCKED_URL_PATTERNS):
         return None
 
     # Clean title — remove site name suffix
