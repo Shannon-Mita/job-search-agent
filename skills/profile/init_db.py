@@ -67,6 +67,7 @@ def import_watchlist(conn):
             name = row.get("Company Name", "").strip()
             url  = row.get("Career Page URL", "").strip()
             sector = row.get("Sector", "").strip()
+            category = row.get("Category", "").strip() or "climate"
 
             if not name or not url:
                 skipped += 1
@@ -77,14 +78,15 @@ def import_watchlist(conn):
             try:
                 cursor.execute(
                     """
-                    INSERT INTO companies (name, career_page_url, sector, priority)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO companies (name, career_page_url, sector, category, priority)
+                    VALUES (?, ?, ?, ?, ?)
                     ON CONFLICT(name) DO UPDATE SET
                         career_page_url = excluded.career_page_url,
                         sector          = excluded.sector,
+                        category        = excluded.category,
                         priority        = excluded.priority
                     """,
-                    (name, url, sector, priority),
+                    (name, url, sector, category, priority),
                 )
                 imported += 1
             except sqlite3.Error as e:

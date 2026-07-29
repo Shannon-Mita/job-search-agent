@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS companies (
     name            TEXT    NOT NULL UNIQUE,
     career_page_url TEXT    NOT NULL,
     sector          TEXT    NOT NULL,
+    category        TEXT    DEFAULT 'climate',
     priority        TEXT    NOT NULL DEFAULT 'MEDIUM'
                             CHECK(priority IN ('HIGH','MEDIUM','LOW')),
     active          INTEGER NOT NULL DEFAULT 1,
