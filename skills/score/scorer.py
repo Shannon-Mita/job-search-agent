@@ -230,10 +230,17 @@ def score_location(location: str, profile: dict) -> tuple[int, str]:
 
 # ── Excluded role detection ───────────────────────────────────────────────────
 
-def is_excluded(title: str, description: str, profile: dict) -> tuple[bool, str]:
-    """Return (True, reason) if role should be excluded entirely."""
+def is_excluded(title: str, description: str, profile: dict, company: str = "") -> tuple[bool, str]:
+    """
+    Return (True, reason) if role should be excluded entirely.
+    Checks company name too, not just title/description — a company-name
+    keyword (e.g. a named defence contractor) only ever matches text the
+    posting itself repeats, which many postings don't (confirmed 2026-09-11:
+    a Palantir "UK Government" role notified despite "palantir" being in
+    excluded_keywords, because its description never says "Palantir").
+    """
     excluded_kws = profile.get("excluded_keywords", [])
-    text = f"{title} {description}".lower()
+    text = f"{title} {description} {company}".lower()
 
     for kw in excluded_kws:
         if kw.lower() in text:
@@ -260,7 +267,7 @@ def score_job(job: dict, watchlist: dict, profile: dict) -> tuple[int, dict]:
     sector      = job.get("sector", "")
 
     # Check exclusions first
-    excluded, reason = is_excluded(title, description, profile)
+    excluded, reason = is_excluded(title, description, profile, company)
     if excluded:
         return -1, {"excluded": reason}
 
@@ -549,7 +556,8 @@ def run_simple_scoring(rescore_all: bool = False) -> dict:
         # excluded_keywords (construction/defence/oil&gas); profile_tech.json
         # defines none, and those terms are irrelevant to AI/tech roles anyway.
         excluded_flag, reason = is_excluded(
-            job.get("title", ""), job.get("description", ""), profile_climate
+            job.get("title", ""), job.get("description", ""), profile_climate,
+            job.get("company_name", "")
         )
         if excluded_flag:
             conn.execute(
