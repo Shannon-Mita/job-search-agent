@@ -78,7 +78,14 @@ def filter_unseen(conn, jobs: list) -> list:
 
 
 def get_unseen_notifiable_jobs(conn) -> list:
-    """Get notifiable dream jobs that haven't been seen before."""
+    """
+    Get notifiable dream jobs that haven't been seen before.
+    Sources like google_jobs have no reliable posted-date field, so
+    first_seen is the only freshness signal — jobs older than 30 days
+    are dropped even if their fingerprint was never marked seen,
+    otherwise stale roles discovered late in the scan window resurface
+    as "new" indefinitely.
+    """
     seen = load_seen()
     rows = conn.execute("""
         SELECT
@@ -92,6 +99,7 @@ def get_unseen_notifiable_jobs(conn) -> list:
           AND j.dismissed = 0
           AND j.score > 0
           AND j.mode = 'dream'
+          AND j.first_seen >= datetime('now', '-30 days')
         ORDER BY j.score DESC, j.first_seen DESC
     """).fetchall()
 

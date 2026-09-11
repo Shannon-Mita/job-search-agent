@@ -43,10 +43,12 @@ CREATE TABLE IF NOT EXISTS jobs (
     description     TEXT,
     source          TEXT    NOT NULL,          -- reed / watchlist / linkedin / etc.
     sector          TEXT,
+    category        TEXT,                      -- climate / tech — which query vertical found it
     score           INTEGER DEFAULT 0,         -- 0-100 from score skill
     score_breakdown TEXT,                      -- JSON: {title, sector, salary, location, seniority}
     mode            TEXT    NOT NULL DEFAULT 'dream'
                             CHECK(mode IN ('dream','bridge')),
+    posted_age_days INTEGER DEFAULT 999,
     first_seen      TEXT    NOT NULL DEFAULT (datetime('now')),
     last_seen       TEXT    NOT NULL DEFAULT (datetime('now')),
     notified        INTEGER NOT NULL DEFAULT 0,
