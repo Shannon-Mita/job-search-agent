@@ -43,6 +43,12 @@ jobs:
       - name: Search Jooble market-wide jobs (weekly — limited request budget)
         run: python skills/search/jooble_search.py
 
+      - name: Score jobs
+        run: python skills/score/scorer.py --rescore-all
+
+      - name: Send job digest email
+        run: python skills/notify/email_digest.py
+
       - name: Discover new companies
         run: python skills/signals/company_discovery.py
 
