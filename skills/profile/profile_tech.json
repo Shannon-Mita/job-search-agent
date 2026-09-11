@@ -1,0 +1,67 @@
+{
+  "category": "tech",
+  "matching_philosophy": {
+    "priority_order": ["earning_potential", "company", "role_level"],
+    "notes": [
+      "Tech search optimises for compensation and equity, not mission.",
+      "Target commercial roles (BD, GTM, partnerships) and AI-specialist roles (orchestration, automation, agent roles).",
+      "Operational and people roles deliberately excluded — focus is high-earning commercial and AI tracks."
+    ]
+  },
+  "target_titles": [
+    "Business Development Manager",
+    "Business Development Director",
+    "Head of Business Development",
+    "VP Business Development",
+    "Partnerships Manager",
+    "Head of Partnerships",
+    "Partnerships Director",
+    "VP Partnerships",
+    "Commercial Director",
+    "Head of Commercial",
+    "GTM Lead",
+    "Head of GTM",
+    "Go-to-Market Lead",
+    "Sales Enablement Manager",
+    "Head of Sales Enablement",
+    "Revenue Lead",
+    "Head of Revenue",
+    "AI Operations Manager",
+    "Head of AI Operations",
+    "AI Automation Specialist",
+    "Agent Maestro",
+    "AI Agent Specialist",
+    "AI Orchestration Lead",
+    "Forward Deployed Engineer",
+    "AI Solutions Lead"
+  ],
+  "title_keywords_strict": [
+    "business development", "head of bd", "vp business development",
+    "partnerships", "head of partnerships", "commercial director",
+    "head of commercial", "gtm", "go-to-market", "go to market",
+    "sales enablement", "head of revenue", "revenue lead",
+    "ai operations", "ai automation", "automation specialist",
+    "agent maestro", "ai agent", "ai orchestration", "orchestration",
+    "forward deployed", "ai solutions"
+  ],
+  "ai_context_keywords": [
+    "ai operations", "ai automation", "automation specialist",
+    "agent maestro", "ai agent", "ai orchestration", "orchestration",
+    "forward deployed", "ai solutions", "artificial intelligence",
+    "machine learning", "llm", "agentic"
+  ],
+  "earning_signals": [
+    "OTE", "on-target earnings", "commission", "uncapped", "equity",
+    "share options", "stock options", "RSU", "competitive salary",
+    "base salary", "bonus"
+  ],
+  "scoring": {
+    "min_score_to_notify": 40,
+    "weights": {
+      "company_watchlist_match": 30,
+      "earning_signal_match": 25,
+      "title_match": 30,
+      "location_match": 15
+    }
+  }
+}

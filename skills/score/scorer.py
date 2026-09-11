@@ -84,6 +84,10 @@ def score_skills_keywords(title: str, description: str, profile: dict) -> tuple[
     core_keywords = profile.get("skills_keywords", {}).get("core", [])
     if not core_keywords:
         core_keywords = profile.get("skills", [])
+    if not core_keywords:
+        # profile_tech.json has neither skills_keywords nor skills —
+        # its title_keywords_strict is the closest equivalent signal
+        core_keywords = profile.get("title_keywords_strict", [])
 
     title_lower       = (title or "").lower()
     description_lower = (description or "").lower()
@@ -113,6 +117,44 @@ def score_skills_keywords(title: str, description: str, profile: dict) -> tuple[
     elif weighted >= 1:
         return 8,  f"keywords:{','.join(set(title_matches + desc_matches))[:80]}"
     return 0, "no_keyword_match"
+
+
+def score_context_signals(text: str, profile: dict) -> tuple[int, str]:
+    """
+    15 points max.
+    Checks title+description for context_signals (climate profile:
+    climate, sustainability, carbon, net zero, etc). profile_tech.json
+    has no context_signals field, so its narrower ai_context_keywords
+    list (AI operations, agent orchestration, forward deployed, etc)
+    stands in as the equivalent topical-relevance check — deliberately
+    NOT title_keywords_strict, which also contains generic commercial
+    terms like "partnerships"/"gtm" already covered by skills_score;
+    reusing it here let a single generic word satisfy both checks at
+    once (e.g. Tesla "Vehicle Program Manager" / Paddle "Sales
+    Specialist" both notified purely because "partnerships" appeared
+    once in the posting — confirmed 2026-09-11).
+
+    This is what actually confirms a non-watchlist job is on-topic —
+    without it, a generic "Business Development Manager" title with
+    boilerplate earning-signal language passes regardless of sector.
+    """
+    signals = (
+        profile.get("context_signals")
+        or profile.get("ai_context_keywords")
+        or profile.get("title_keywords_strict")
+        or []
+    )
+    if not signals:
+        return 0, "no_context_signals_defined"
+
+    text_lower = (text or "").lower()
+    found = [s for s in signals if s.lower() in text_lower]
+
+    if len(found) >= 2:
+        return 15, f"context:{','.join(found[:3])}"
+    elif len(found) == 1:
+        return 8, f"context:{found[0]}"
+    return 0, "no_context_match"
 
 
 def score_sector(sector: str, profile: dict) -> tuple[int, str]:
@@ -361,6 +403,12 @@ def load_watchlist(conn) -> dict:
     }
 
 
+def get_profile_tech() -> dict:
+    path = ROOT / "skills" / "profile" / "profile_tech.json"
+    with open(path) as f:
+        return json.load(f)
+
+
 def run_scoring(rescore_all: bool = False) -> dict:
     """
     Score all unscored jobs (or all jobs if rescore_all=True).
@@ -442,19 +490,34 @@ def run_scoring(rescore_all: bool = False) -> dict:
     return summary
 
 
+def _title_terms_for(profile: dict) -> list:
+    return (
+        profile.get("title_keywords", [])
+        + [t.lower() for t in profile.get("target_titles", [])]
+        + profile.get("title_keywords_strict", [])
+    )
+
+
 def run_simple_scoring(rescore_all: bool = False) -> dict:
     """
     Simplified scoring — surfaces any role that matches on company OR title.
     No description needed. Company on watchlist = show it.
     Title keyword match = show it.
-    """
-    conn     = get_conn()
-    profile  = get_profile()
-    watchlist = load_watchlist(conn)
 
-    title_keywords = profile.get("title_keywords", [])
-    target_titles  = [t.lower() for t in profile.get("target_titles", [])]
-    all_title_terms = title_keywords + target_titles
+    Jobs are routed to profile.json (climate) or profile_tech.json (tech)
+    based on job['category'] — sourced from google_jobs.py/jooble_search.py's
+    query-matrix tagging. Sector scoring stays anchored to profile.json's
+    `sectors` dict regardless of category: watchlist companies' sector
+    values were imported from the CSV using profile.json's sector priority
+    mapping (see init_db.py), so that data is real and should be left alone.
+    """
+    conn            = get_conn()
+    profile_climate = get_profile()
+    profile_tech    = get_profile_tech()
+    watchlist       = load_watchlist(conn)
+
+    climate_title_terms = _title_terms_for(profile_climate)
+    tech_title_terms    = _title_terms_for(profile_tech)
 
     if rescore_all:
         jobs = conn.execute(
@@ -476,11 +539,17 @@ def run_simple_scoring(rescore_all: bool = False) -> dict:
         title       = (job.get("title") or "").lower()
         company     = (job.get("company_name") or "").lower()
         location    = (job.get("location") or "").lower()
-        description = (job.get("description") or "").lower()
+        description = job.get("description") or ""
 
-        # Hard exclusions first
+        category        = (job.get("category") or "climate").lower()
+        profile         = profile_tech if category == "tech" else profile_climate
+        all_title_terms = tech_title_terms if category == "tech" else climate_title_terms
+
+        # Hard exclusions first — always checked against profile.json's
+        # excluded_keywords (construction/defence/oil&gas); profile_tech.json
+        # defines none, and those terms are irrelevant to AI/tech roles anyway.
         excluded_flag, reason = is_excluded(
-            job.get("title", ""), job.get("description", ""), profile
+            job.get("title", ""), job.get("description", ""), profile_climate
         )
         if excluded_flag:
             conn.execute(
@@ -532,25 +601,48 @@ def run_simple_scoring(rescore_all: bool = False) -> dict:
         score += title_score
         breakdown["title"] = {"score": title_score, "matched": matched_terms}
 
-        # Component 3: Location (0-15)
-        loc_score, loc_detail = score_location(job.get("location", ""), profile)
+        # Component 3: Location (0-15) — location logic is profile-agnostic
+        # (hardcoded UK/AU terms), profile param is unused by score_location
+        loc_score, loc_detail = score_location(job.get("location", ""), profile_climate)
         # Rescale to 15 max
         loc_score = int(loc_score * 1.5)
         score += loc_score
         breakdown["location"] = {"score": loc_score, "detail": loc_detail}
 
-        # Component 4: Sector (0-15)
-        sec_score, sec_detail = score_sector(job.get("sector", ""), profile)
+        # Component 4: Sector (0-15) — always profile.json's sectors dict;
+        # see docstring above on why this stays anchored to the climate profile
+        sec_score, sec_detail = score_sector(job.get("sector", ""), profile_climate)
         score += sec_score
         breakdown["sector"] = {"score": sec_score, "detail": sec_detail}
 
+        # Component 5: Skills keywords (0-20) — category-routed profile
+        skills_score, skills_detail = score_skills_keywords(
+            job.get("title", ""), description, profile
+        )
+        score += skills_score
+        breakdown["skills"] = {"score": skills_score, "detail": skills_detail}
+
+        # Component 6: Context signals (0-15) — category-routed profile.
+        # This is the topical-relevance check that was previously missing
+        # entirely: climate/sustainability/carbon terms for climate jobs,
+        # title_keywords_strict (AI operations, agent orchestration, etc)
+        # for tech jobs.
+        context_score, context_detail = score_context_signals(
+            f"{job.get('title', '')} {description}", profile
+        )
+        score += context_score
+        breakdown["context"] = {"score": context_score, "detail": context_detail}
+
         # Notify logic:
         # Watchlist company + relevant title = notify (location trusted)
-        # OR strong title match + confirmed location = notify (open market)
+        # OR skills + topical relevance + confirmed location = notify
+        # (open market — replaces the old "any BD-ish title + UK location"
+        # bar, which let off-topic roles like a forklift-recruiter BD post
+        # or a Mastercard analyst role through under the climate profile)
         notify = 1 if (
             (company_score >= 12 and title_score >= 20)
             or
-            (title_score >= 40 and loc_score > 0)
+            (skills_score > 0 and context_score > 0 and loc_score > 0)
         ) else 0
 
         conn.execute(
@@ -563,7 +655,7 @@ def run_simple_scoring(rescore_all: bool = False) -> dict:
         scored += 1
         if notify:
             notifiable += 1
-            log.info(f"  NOTIFY — {job.get('title')} @ {job.get('company_name')} [{score}pts]")
+            log.info(f"  NOTIFY — {job.get('title')} @ {job.get('company_name')} [{score}pts] ({category})")
 
     conn.commit()
     conn.close()
