@@ -122,13 +122,36 @@ document.querySelectorAll('.tab').forEach(tab => {
   });
 });
 
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzFrTou0iJRghRxFf54BxmtqYs3d1E8LyBhs986TLmWirIQg3ZRMK06LioAGV8Ys0l4ug/exec";
+const WEBHOOK_SECRET = "Mita-job-9920-!£";
+
+function postFeedback(job, val) {
+  fetch(WEBHOOK_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({
+      secret: WEBHOOK_SECRET,
+      title: job.title || "",
+      company: job.company || "",
+      category: job.category || "",
+      feedback: val
+    })
+  }).catch(() => {});
+}
+
 document.getElementById('list').addEventListener('click', (e) => {
   const btn = e.target.closest('button[data-fp]');
   if (!btn) return;
   const fp = btn.dataset.fp, val = btn.dataset.val;
+  const job = jobs.find(j => fingerprint(j) === fp);
+
   feedback[fp] = feedback[fp] === val ? null : val;
   if (!feedback[fp]) delete feedback[fp];
   localStorage.setItem('job-feedback', JSON.stringify(feedback));
+
+  if (job && feedback[fp]) postFeedback(job, feedback[fp]);
+
   render();
 });
 
