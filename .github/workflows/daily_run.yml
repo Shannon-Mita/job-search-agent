@@ -58,6 +58,36 @@ jobs:
       - name: Score all jobs
         run: python skills/score/scorer.py --rescore-all
 
+      - name: Export dashboard data
+        run: |
+          python3 -c "
+          import sys, json
+          from datetime import datetime
+          sys.path.insert(0, 'skills/profile')
+          from db import get_conn
+          conn = get_conn()
+          rows = conn.execute('''
+              SELECT title, company_name as company, location, url, score, category
+              FROM jobs WHERE notified = 1 ORDER BY score DESC
+          ''').fetchall()
+          output = {
+              'generated_at': datetime.now().strftime('%d %b %Y, %H:%M UTC'),
+              'jobs': [dict(r) for r in rows]
+          }
+          with open('docs/data.json', 'w') as f:
+              json.dump(output, f, indent=2)
+          print(f'Exported {len(rows)} jobs to docs/data.json')
+          "
+
+      - name: Commit dashboard data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/data.json
+          git commit -m "Update dashboard data [skip ci]" || echo "No changes to commit"
+          git pull --rebase origin main
+          git push
+
       - name: Send email digest
         run: python skills/notify/email_digest.py
 
