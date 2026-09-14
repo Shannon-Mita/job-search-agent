@@ -57,40 +57,34 @@ def is_uk_or_remote(location: str) -> bool:
     loc = (location or "").lower()
     return any(t in loc for t in UK_LOCATION_TERMS)
 
-# Query matrix — climate vertical
-CLIMATE_QUERIES = [
-    "climate business development UK",
-    "sustainability business development UK",
-    "climate partnerships UK",
-    "sustainability commercial lead UK",
-    "climate GTM UK",
-    "carbon commercial manager UK",
-    "climate revenue lead remote",
-    "sustainability partnerships remote UK",
-    "cleantech business development UK",
-    "climate tech sales UK",
-    "net zero commercial UK",
-    "climate market entry UK",
-]
+# Query matrix — loaded from the shared query_terms.json (bare terms, no
+# location text), then jooble's per-term UK/remote suffix is reapplied here.
+# The suffix isn't uniform across terms — these overrides preserve the exact
+# query strings this file used before the shared-config extraction.
+import json as _json
+with open(ROOT / "skills" / "search" / "query_terms.json") as _f:
+    _terms = _json.load(_f)
 
-# Query matrix — tech/AI vertical
+_CLIMATE_SUFFIX_OVERRIDES = {
+    "climate revenue lead": " remote",
+    "sustainability partnerships": " remote UK",
+}
+_TECH_SUFFIX_OVERRIDES = {
+    "AI sales": " UK remote",
+    "forward deployed engineer": " UK remote",
+    "AI revenue": " UK remote",
+}
+_TECH_FULL_OVERRIDES = {
+    "SaaS partnerships AI": "SaaS partnerships UK AI",
+}
+
+CLIMATE_QUERIES = [
+    t + _CLIMATE_SUFFIX_OVERRIDES.get(t, " UK")
+    for t in _terms["climate_queries"]
+]
 TECH_QUERIES = [
-    "AI business development UK",
-    "AI partnerships UK",
-    "AI sales UK remote",
-    "AI GTM UK",
-    "AI commercial lead UK",
-    "AI go to market UK",
-    "AI solutions consultant UK",
-    "AI automation specialist UK",
-    "agent orchestration UK",
-    "forward deployed engineer UK remote",
-    "AI operations manager UK",
-    "AI revenue UK remote",
-    "machine learning business development UK",
-    "SaaS partnerships UK AI",
-    "employer of record business development UK",
-    "global mobility commercial UK",
+    _TECH_FULL_OVERRIDES.get(t, t + _TECH_SUFFIX_OVERRIDES.get(t, " UK"))
+    for t in _terms["tech_queries"]
 ]
 
 

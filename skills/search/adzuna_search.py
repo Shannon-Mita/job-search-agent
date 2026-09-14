@@ -26,24 +26,11 @@ ADZUNA_URL     = "https://api.adzuna.com/v1/api/jobs/gb/search/1"
 MAX_AGE_DAYS   = 30
 DELAY          = 1.5
 
-CLIMATE_QUERIES = [
-    "climate business development", "sustainability business development",
-    "climate partnerships", "sustainability commercial lead",
-    "climate GTM", "carbon commercial manager",
-    "climate revenue lead", "sustainability partnerships",
-    "cleantech business development", "climate tech sales",
-    "net zero commercial", "climate market entry",
-]
-
-TECH_QUERIES = [
-    "AI business development", "AI partnerships", "AI sales",
-    "AI GTM", "AI commercial lead", "AI go to market",
-    "AI solutions consultant", "AI automation specialist",
-    "agent orchestration", "forward deployed engineer",
-    "AI operations manager", "AI revenue",
-    "machine learning business development", "SaaS partnerships AI",
-    "employer of record business development", "global mobility commercial",
-]
+import json as _json
+with open(ROOT / "skills" / "search" / "query_terms.json") as _f:
+    _terms = _json.load(_f)
+CLIMATE_QUERIES = _terms["climate_queries"]
+TECH_QUERIES = _terms["tech_queries"]
 
 UK_TERMS = [
     "uk", "united kingdom", "london", "manchester", "bristol",
