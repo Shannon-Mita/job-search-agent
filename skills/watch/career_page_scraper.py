@@ -693,12 +693,19 @@ def scrape_all(limit: Optional[int] = None, priority_filter: Optional[str] = Non
 
     log.info(f"Starting career page scrape — {len(companies)} companies")
 
+    SCRAPE_TIME_BUDGET_SECONDS = 35 * 60  # 35 minutes — leaves headroom in the ~60min total workflow baseline
+    start_time = time.time()
+
     total_new   = 0
     total_found = 0
     errors      = 0
     blocked     = 0
 
     for i, company in enumerate(companies, 1):
+        if time.time() - start_time > SCRAPE_TIME_BUDGET_SECONDS:
+            log.warning(f"Time budget exceeded — stopping with {len(companies) - i + 1} companies unscraped this run")
+            break
+
         start_ms = int(time.time() * 1000)
         company  = dict(company)
         log.info(f"[{i}/{len(companies)}] {company['name']} — {company['career_page_url']}")
