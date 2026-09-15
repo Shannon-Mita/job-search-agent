@@ -33,6 +33,7 @@ jobs:
           echo "NOTIFY_EMAIL=${{ secrets.NOTIFY_EMAIL }}" >> .env
           echo "SERPER_API_KEY=${{ secrets.SERPER_API_KEY }}" >> .env
           echo "JOOBLE_API_KEY=${{ secrets.JOOBLE_API_KEY }}" >> .env
+          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env
 
       - name: Initialise database
         run: python skills/profile/init_db.py
@@ -49,17 +50,20 @@ jobs:
       - name: Send job digest email
         run: python skills/notify/email_digest.py
 
+      - name: Run automated feedback learning
+        run: python skills/analysis/feedback_learning.py
+
       - name: Discover new companies
         run: python skills/signals/company_discovery.py
 
       - name: Send company digest email
         run: python skills/notify/company_digest.py
 
-      - name: Commit updated seen_jobs.json
+      - name: Commit updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/seen_jobs.json
-          git commit -m "Update seen_jobs.json [skip ci]" || echo "No changes to commit"
+          git add data/seen_jobs.json skills/search/query_terms.json data/companies.csv
+          git commit -m "Weekly update: seen jobs, feedback learning [skip ci]" || echo "No changes to commit"
           git pull --rebase origin main
           git push
