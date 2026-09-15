@@ -27,6 +27,10 @@
   .actions button { width: 32px; height: 32px; border-radius: 8px; border: 0.5px solid #E5E7EB; background: #fff; cursor: pointer; font-size: 15px; }
   .actions button.yes.active { background: #E1F5EE; border-color: #0F6E56; }
   .actions button.no.active { background: #FCEBEB; border-color: #A32D2D; }
+  .reason-picker { display: none; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+  .reason-picker.show { display: flex; }
+  .reason-btn { font-size: 11px; padding: 4px 10px; border-radius: 14px; border: 0.5px solid #E5E7EB; background: #fff; cursor: pointer; }
+  .reason-btn.active { background: #111827; color: #fff; border-color: #111827; }
   .empty { text-align: center; padding: 60px 20px; color: #9CA3AF; font-size: 14px; }
   .stats { display: flex; gap: 10px; margin-bottom: 16px; }
   .stat { background: #fff; border-radius: 8px; padding: 10px 14px; flex: 1; border: 0.5px solid #E5E7EB; }
@@ -105,6 +109,11 @@ function render() {
             <button class="no ${fb === 'no' ? 'active' : ''}" data-fp="${fp}" data-val="no">&#10005;</button>
           </div>
         </div>
+        <div class="reason-picker" id="reason-${fp}">
+          ${['Role', 'Salary', 'Company', 'Location'].map(r =>
+            `<button class="reason-btn" data-fp="${fp}" data-reason="${r}">${r}</button>`
+          ).join('')}
+        </div>
       </div>`;
     }).join('');
 
@@ -125,7 +134,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbzFrTou0iJRghRxFf54BxmtqYs3d1E8LyBhs986TLmWirIQg3ZRMK06LioAGV8Ys0l4ug/exec";
 const WEBHOOK_SECRET = "MitaJobs9920x7k2";
 
-function postFeedback(job, val) {
+function postFeedback(job, val, reason) {
   fetch(WEBHOOK_URL, {
     method: "POST",
     mode: "no-cors",
@@ -135,24 +144,38 @@ function postFeedback(job, val) {
       title: job.title || "",
       company: job.company || "",
       category: job.category || "",
-      feedback: val
+      feedback: val,
+      reason: reason
     })
   }).catch(() => {});
 }
 
+let pendingFeedback = {};
+
 document.getElementById('list').addEventListener('click', (e) => {
-  const btn = e.target.closest('button[data-fp]');
-  if (!btn) return;
-  const fp = btn.dataset.fp, val = btn.dataset.val;
-  const job = jobs.find(j => fingerprint(j) === fp);
+  const actionBtn = e.target.closest('button[data-fp][data-val]');
+  const reasonBtn = e.target.closest('button[data-fp][data-reason]');
 
-  feedback[fp] = feedback[fp] === val ? null : val;
-  if (!feedback[fp]) delete feedback[fp];
-  localStorage.setItem('job-feedback', JSON.stringify(feedback));
+  if (actionBtn) {
+    const fp = actionBtn.dataset.fp, val = actionBtn.dataset.val;
+    pendingFeedback[fp] = val;
+    document.querySelectorAll('.reason-picker').forEach(el => el.classList.remove('show'));
+    document.getElementById('reason-' + fp).classList.add('show');
+    return;
+  }
 
-  if (job && feedback[fp]) postFeedback(job, feedback[fp]);
+  if (reasonBtn) {
+    const fp = reasonBtn.dataset.fp, reason = reasonBtn.dataset.reason;
+    const val = pendingFeedback[fp];
+    const job = jobs.find(j => fingerprint(j) === fp);
 
-  render();
+    feedback[fp] = val;
+    localStorage.setItem('job-feedback', JSON.stringify(feedback));
+
+    if (job) postFeedback(job, val, reason);
+    document.getElementById('reason-' + fp).classList.remove('show');
+    render();
+  }
 });
 
 loadJobs();
