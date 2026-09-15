@@ -39,6 +39,7 @@ jobs:
           echo "SERPER_API_KEY=${{ secrets.SERPER_API_KEY }}" >> .env
           echo "ADZUNA_APP_ID=${{ secrets.ADZUNA_APP_ID }}" >> .env
           echo "ADZUNA_APP_KEY=${{ secrets.ADZUNA_APP_KEY }}" >> .env
+          echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env
 
       - name: Initialise database
         run: python skills/profile/init_db.py
@@ -57,6 +58,9 @@ jobs:
 
       - name: Score all jobs
         run: python skills/score/scorer.py --rescore-all
+
+      - name: Run automated feedback learning
+        run: python skills/analysis/feedback_learning.py
 
       - name: Export dashboard data
         run: |
@@ -79,23 +83,14 @@ jobs:
           print(f'Exported {len(rows)} jobs to docs/data.json')
           "
 
-      - name: Commit dashboard data
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/data.json
-          git commit -m "Update dashboard data [skip ci]" || echo "No changes to commit"
-          git pull --rebase origin main
-          git push
-
       - name: Send email digest
         run: python skills/notify/email_digest.py
 
-      - name: Commit updated seen_jobs.json
+      - name: Commit updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/seen_jobs.json
-          git commit -m "Update seen_jobs.json [skip ci]" || echo "No changes to commit"
+          git add data/seen_jobs.json docs/data.json skills/search/query_terms.json data/companies.csv
+          git commit -m "Daily update: seen jobs, dashboard data, feedback learning [skip ci]" || echo "No changes to commit"
           git pull --rebase origin main
           git push
