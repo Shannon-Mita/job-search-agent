@@ -90,7 +90,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/seen_jobs.json docs/data.json skills/search/query_terms.json data/companies.csv
+          git add data/seen_jobs.json docs/data.json skills/search/query_terms.json data/companies.csv data/last_feedback_run.json
           git commit -m "Daily update: seen jobs, dashboard data, feedback learning [skip ci]" || echo "No changes to commit"
           git pull --rebase origin main
           git push

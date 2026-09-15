@@ -26,6 +26,17 @@ FEEDBACK_SHEET_URL = (
 )
 QUERY_TERMS_PATH = ROOT / "skills" / "search" / "query_terms.json"
 COMPANIES_CSV_PATH = ROOT / "data" / "companies.csv"
+LAST_RUN_PATH = ROOT / "data" / "last_feedback_run.json"
+
+
+def get_last_run_timestamp() -> str:
+    if LAST_RUN_PATH.exists():
+        return json.loads(LAST_RUN_PATH.read_text()).get("last_timestamp", "")
+    return ""
+
+
+def save_last_run_timestamp(ts: str):
+    LAST_RUN_PATH.write_text(json.dumps({"last_timestamp": ts}))
 
 
 def fetch_feedback() -> list:
@@ -159,11 +170,22 @@ def run() -> dict:
         return {"error": "no_api_key"}
 
     feedback = fetch_feedback()
-    log.info(f"Fetched {len(feedback)} feedback rows")
+    last_ts = get_last_run_timestamp()
+    new_feedback = [r for r in feedback if r.get("timestamp", "") > last_ts] if last_ts else feedback
 
+    log.info(f"Fetched {len(feedback)} total rows, {len(new_feedback)} new since last run")
+
+    if len(new_feedback) == 0:
+        log.info("No new feedback since last run — skipping analysis")
+        return {"feedback_rows": len(feedback), "new_rows": 0, "terms_added": 0, "companies_added": 0, "summary": "no new feedback"}
+
+    # Still analyse against full history for pattern context, but only proceed if there's something new to learn from
     result = analyse_with_claude(feedback)
     terms_added = update_query_terms(result.get("new_search_terms", {}))
     companies_added = update_watchlist(result.get("new_companies", []))
+
+    if feedback:
+        save_last_run_timestamp(max(r.get("timestamp", "") for r in feedback))
 
     log.info(f"Summary: {result.get('summary', '')}")
     log.info(
@@ -173,6 +195,7 @@ def run() -> dict:
 
     return {
         "feedback_rows": len(feedback),
+        "new_rows": len(new_feedback),
         "terms_added": terms_added,
         "companies_added": companies_added,
         "summary": result.get("summary", ""),
