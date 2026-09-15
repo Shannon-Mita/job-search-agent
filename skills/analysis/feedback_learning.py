@@ -100,7 +100,14 @@ Respond with only JSON, no markdown fences, no preamble:
         },
         json={
             "model": "claude-sonnet-5",
-            "max_tokens": 1000,
+            # 1000 wasn't enough — this model spontaneously uses extended
+            # thinking on this prompt, and thinking tokens count against
+            # max_tokens. Confirmed 2026-09-15: a real call used 744
+            # thinking tokens out of a 1000 budget, leaving the JSON
+            # answer only ~256 tokens of headroom — one longer analysis
+            # got cut off mid-string with stop_reason "max_tokens" and
+            # failed to parse. 4000 gives comfortable room for both.
+            "max_tokens": 4000,
             "messages": [{"role": "user", "content": prompt}],
         },
         timeout=30,
@@ -109,7 +116,20 @@ Respond with only JSON, no markdown fences, no preamble:
         log.error(f"Anthropic API error: {resp.status_code} {resp.text[:200]}")
         return {"new_search_terms": {"climate": [], "tech": []}, "new_companies": [], "summary": "api error"}
 
-    text = resp.json()["content"][0]["text"]
+    data = resp.json()
+    if data.get("stop_reason") == "max_tokens":
+        log.error("Claude response truncated (hit max_tokens) — thinking + answer exceeded budget, skipping")
+        return {"new_search_terms": {"climate": [], "tech": []}, "new_companies": [], "summary": "response truncated"}
+
+    # content[0] isn't reliably the text block — Claude can prepend a
+    # "thinking" block for more complex prompts (confirmed 2026-09-15:
+    # this exact prompt triggered it against real feedback data), which
+    # has no "text" key and would KeyError on a blind content[0] index.
+    text_block = next((b for b in data["content"] if b.get("type") == "text"), None)
+    if not text_block:
+        log.error("No text block in Claude response")
+        return {"new_search_terms": {"climate": [], "tech": []}, "new_companies": [], "summary": "no text in response"}
+    text = text_block["text"]
     clean = text.replace("```json", "").replace("```", "").strip()
     try:
         return json.loads(clean)
