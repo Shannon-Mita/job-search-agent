@@ -650,14 +650,15 @@ def save_jobs(conn, jobs: list, company: dict) -> tuple:
                 INSERT INTO jobs (
                     fingerprint, title, company_name, company_id,
                     location, salary_raw, salary_min, salary_max,
-                    url, description, source, sector, mode
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'watchlist', ?, 'dream')
+                    url, description, source, sector, category, mode
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'watchlist', ?, ?, 'dream')
                 """,
                 (
                     fingerprint, job["title"], company["name"], company["id"],
                     job.get("location", ""), job.get("salary_raw", ""),
                     salary_min, salary_max,
                     job["url"], job.get("description", ""), company["sector"],
+                    company.get("category"),
                 ),
             )
             new_count += 1

@@ -202,6 +202,7 @@ def extract_job_from_result(result: dict, source: str) -> Optional[dict]:
         "url":          url,
         "description":  snippet[:MAX_DESCRIPTION],
         "source":       source,
+        "category":     "climate",
     }
 
 
@@ -314,14 +315,15 @@ def scrape_via_serper(source_filter: Optional[str] = None) -> dict:
                         INSERT INTO jobs (
                             fingerprint, title, company_name, company_id,
                             location, salary_raw, salary_min, salary_max,
-                            url, description, source, mode
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'dream')
+                            url, description, source, category, mode
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'dream')
                         """,
                         (
                             fingerprint, job["title"], job["company_name"],
                             company_id, job["location"], job["salary_raw"],
                             salary_min, salary_max,
                             job["url"], job["description"], job["source"],
+                            job["category"],
                         ),
                     )
                     new_count += 1
